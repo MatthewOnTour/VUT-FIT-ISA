@@ -25,7 +25,32 @@ int main(int argc, char *argv[]){
 
     argvs(argc, argv, &ipShow, &srcPath, &ipNum);
     positioning(&ipShow, &srcPath, &ipNum, &baseNum, &dstNum, &srcNum);
-    printf("Hello, World!");
+    
+    
+    /**file opening**/ //TODO
+    
+    fp = fopen(argv[srcNum], "r");
+    if (fp == NULL) {
+        fprintf(stderr, "cannot open %s\n", argv[srcNum]);
+        return 1;
+    }else {
+        fp = stdin; /* read from standard input if no argument */
+    }
+    while(1) {
+      c = fgetc(fp);
+      if( feof(fp) ) { 
+         break ;
+      }
+      printf("%c", c);   //TODO   idk ci to je dobre 
+   }
+    
+
+
+
+    //make sending and everything else :( TODO
+
+
+    fclose(fp);
     return 0;
 }
 /*****end of main function*****/
