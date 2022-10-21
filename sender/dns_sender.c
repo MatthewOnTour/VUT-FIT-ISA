@@ -4,26 +4,67 @@
 #include <arpa/inet.h>
 #include <netinet/in.h>
 
-/* function declarations */
+            /****function declarations****/
 int argvs(int argc, char *argv[] ,bool ipShow, bool srcPath, int ipNum);
 int isValidIp4 (char *str);
+int positioning (bool ipShow, bool srcPath, int ipNum, int baseNum, int dstNum, int srcNum);
+        /****end of function declarations****/
 
-//main function
+/*****main function*****/
 int main(int argc, char *argv[]){
-
     FILE *fp;
     int c;
-
-    //flags
+        /****flags and intgrs****/
     bool ipShow = false;  //flag for "-u"
-    bool srcPath = false;   //falag for [SRC_FILEPATH]
-    int ipNum = 0;
+    bool srcPath = false;   //flag for [SRC_FILEPATH]
+    int ipNum = 0;          // position of "-u", position of ip is ipNum + 1 
+    int baseNum = 0;        //position of {BASE_HOST}
+    int dstNum = 0;         //position of {DST_FILEPATH}
+    int srcNum = 0;         //position of [SRC_FILEPATH]
+        /****end of flags and intgrs****/
 
     argvs(argc, argv, ipShow, srcPath, ipNum);
+    positioning(ipShow, srcPath, ipNum, baseNum, dstNum, srcNum);
+
+}
+/*****end of main function*****/
+
+/****functions****/
+
+int positioning (bool ipShow, bool srcPath, int ipNum, int baseNum, int dstNum, int srcNum){
+    if(ipShow){
+        switch (ipNum){
+        case '3':
+            baseNum = 4;
+            dstNum = 5;
+            srcNum = 6;
+            break;
+        case '4':
+            baseNum = 2;
+            dstNum = 5;
+            srcNum = 6;
+            break;
+        case '5':
+            baseNum = 2;
+            dstNum = 3;
+            srcNum = 6;
+            break;
+        case '6':
+            baseNum = 2;
+            dstNum = 3;
+            srcNum = 4;
+            break;
+        default:
+            fprintf(stderr, "Internal error.\n");
+            return(1);  //error
+        }
+    }else{
+        baseNum = 2;
+        dstNum = 3;
+        srcNum = 4;
+    }
 }
 
-
-//functions
 int argvs(int argc, char *argv[], bool ipShow, bool srcPath, int ipNum){
     bool found = false;
 
@@ -37,9 +78,9 @@ int argvs(int argc, char *argv[], bool ipShow, bool srcPath, int ipNum){
         if (strcmp(argv[a] , "-u") == 0){
             ipShow = true;
             found = true;
-            //check ip if it is correct TODO
+            
+            //check ip if it is correct
             isValidIp4(argv[a+1]);
-
 
             if (argc == 5){             //if argc == 5 there is not [SRC_FILEPATH] of 6 we do have it
                 srcPath = false;
@@ -63,7 +104,7 @@ int argvs(int argc, char *argv[], bool ipShow, bool srcPath, int ipNum){
             srcPath = true;
         }else{
             fprintf(stderr, "Invalid input in arguments.\n");
-            printf(stderr, "Usage: dns_sender [-u UPSTREAM_DNS_IP] {BASE_HOST} {DST_FILEPATH} [SRC_FILEPATH].\n");
+            fprintf(stderr, "Usage: dns_sender [-u UPSTREAM_DNS_IP] {BASE_HOST} {DST_FILEPATH} [SRC_FILEPATH].\n");
             return(1);  //error
         }
     }
