@@ -7,7 +7,7 @@
             /****function declarations****/
 int argvs(int argc, char *argv[] ,bool *ipShow, bool *srcPath, int *ipNum);
 int isValidIp4 (char *str);
-int positioning (bool *ipShow, bool *srcPath, int *ipNum, int *baseNum, int *dstNum, int *srcNum);
+int positioning (int argc, bool *ipShow, bool *srcPath, int *ipNum, int *baseNum, int *dstNum, int *srcNum);
         /****end of function declarations****/
 
 /*****main function*****/
@@ -24,31 +24,33 @@ int main(int argc, char *argv[]){
         /****end of flags and intgrs****/
 
     argvs(argc, argv, &ipShow, &srcPath, &ipNum);
-    positioning(&ipShow, &srcPath, &ipNum, &baseNum, &dstNum, &srcNum);
+    positioning(argc, &ipShow, &srcPath, &ipNum, &baseNum, &dstNum, &srcNum);
     
     
     /**file opening**/ //TODO
-    
-    fp = fopen(argv[srcNum], "r");
-    if (fp == NULL) {
-        fprintf(stderr, "cannot open %s\n", argv[srcNum]);
-        return 1;
-    }else {
-        fp = stdin; /* read from standard input if no argument */
-    }
-    while(1) {
-      c = fgetc(fp);
-      if( feof(fp) ) { 
-         break ;
-      }
-      printf("%c", c);   //TODO   idk ci to je dobre 
-   }
-    
+    if (srcPath == false){
+        if (srcNum == 99){
+            fp = stdin; /* read from standard input if no argument */
+        }else{
+            fp = fopen(argv[srcNum], "r");
 
+            if (fp == NULL) {
+                fprintf(stderr, "cannot open %s\n", argv[srcNum]);
+                return 1;
+            }
+        }
+        while(1) {
+        c = fgetc(fp);
+        if(feof(fp)) { 
+             // TODO kontrola na riadky ci berie vsetky 
+            break ;
+        }
+        printf("%c", c);
+        }
+    }
 
 
     //make sending and everything else :( TODO
-
 
     fclose(fp);
     return 0;
@@ -57,8 +59,8 @@ int main(int argc, char *argv[]){
 
 /****functions****/
 
-int positioning (bool *ipShow, bool *srcPath, int *ipNum, int *baseNum, int *dstNum, int *srcNum){
-    if(ipShow){
+int positioning (int argc, bool *ipShow, bool *srcPath, int *ipNum, int *baseNum, int *dstNum, int *srcNum){
+    if(*ipShow){
         switch (*ipNum){
         case 3:
             *baseNum = 4;
@@ -85,9 +87,15 @@ int positioning (bool *ipShow, bool *srcPath, int *ipNum, int *baseNum, int *dst
             return(1);  //error
         }
     }else{
-        *baseNum = 2;
-        *dstNum = 3;
-        *srcNum = 4;
+        if (argc == 4){
+            *baseNum = 2;
+            *dstNum = 3;
+            *srcNum = 4;
+        }else {
+            *baseNum = 2;
+            *dstNum = 3;
+            *srcNum = 99;       //not existing load from stdin
+        }
     }
 }
 
@@ -100,7 +108,7 @@ int argvs(int argc, char *argv[], bool *ipShow, bool *srcPath, int *ipNum){
         return(1);  //error
     }
 
-    for (int a = 1; a < 6; a++){
+    for (int a = 1; a < argc; a++){
         if (strcmp(argv[a] , "-u") == 0){
             *ipShow = true;
             found = true;
