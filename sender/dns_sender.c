@@ -1,8 +1,16 @@
 #include <stdio.h>
+#include <stdlib.h> 
+#include <unistd.h> 
 #include <string.h>
 #include <stdbool.h>
+#include <sys/types.h>
+#include <sys/socket.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
+
+#define PORT     8080 
+#define MAXLINE 1024
+
 
             /****function declarations****/
 int argvs(int argc, char *argv[] ,bool *ipShow, bool *srcPath, int *ipNum);
@@ -15,7 +23,7 @@ int main(int argc, char *argv[]){
     FILE *fp;
     int c;
         /****flags and intgrs****/
-    bool ipShow = false;  //flag for "-u"
+    bool ipShow = false;    //flag for "-u"
     bool srcPath = false;   //flag for [SRC_FILEPATH]
     int ipNum = 0;          // position of "-u", position of ip is ipNum + 1 
     int baseNum = 0;        //position of {BASE_HOST}
@@ -26,8 +34,7 @@ int main(int argc, char *argv[]){
     argvs(argc, argv, &ipShow, &srcPath, &ipNum);
     positioning(argc, &ipShow, &srcPath, &ipNum, &baseNum, &dstNum, &srcNum);
     
-    
-    /**file opening**/ //TODO
+    /**file opening**/              //TODO make it in array or smth
     if (srcPath == false){
         if (srcNum == 99){
             fp = stdin; /* read from standard input if no argument */
@@ -42,15 +49,48 @@ int main(int argc, char *argv[]){
         while(1) {
         c = fgetc(fp);
         if(feof(fp)) { 
-             // TODO kontrola na riadky ci berie vsetky 
             break ;
         }
         printf("%c", c);
         }
     }
 
+    //Client side implementation of UDP from https://www.geeksforgeeks.org/udp-server-client-implementation-c/
 
-    //make sending and everything else :( TODO
+    int sockfd; 
+    char buffer[MAXLINE]; 
+    char *hello = "Hello from client"; 
+    struct sockaddr_in     servaddr; 
+    
+    // Creating socket file descriptor 
+    if ( (sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0 ) { 
+        perror("socket creation failed"); 
+        exit(EXIT_FAILURE); 
+    } 
+    
+    memset(&servaddr, 0, sizeof(servaddr)); 
+        
+    // Filling server information 
+    servaddr.sin_family = AF_INET; 
+    servaddr.sin_port = htons(PORT); 
+    servaddr.sin_addr.s_addr = INADDR_ANY; 
+        
+    int n, len; 
+        
+    sendto(sockfd, (const char *)hello, strlen(hello), 
+        MSG_CONFIRM, (const struct sockaddr *) &servaddr,  
+            sizeof(servaddr)); 
+    printf("Hello message sent.\n"); 
+            
+    n = recvfrom(sockfd, (char *)buffer, MAXLINE,  
+                MSG_WAITALL, (struct sockaddr *) &servaddr, 
+                &len); 
+    buffer[n] = '\0'; 
+    printf("Server : %s\n", buffer); 
+    
+    close(sockfd);
+
+    
 
     fclose(fp);
     return 0;
@@ -63,31 +103,51 @@ int positioning (int argc, bool *ipShow, bool *srcPath, int *ipNum, int *baseNum
     if(*ipShow){
         switch (*ipNum){
         case 3:
-            *baseNum = 4;
-            *dstNum = 5;
-            *srcNum = 6;
+            if (srcPath == true){
+                *baseNum = 4;
+                *dstNum = 5;
+                *srcNum = 6;
+            }else{
+                *baseNum = 4;
+                *dstNum = 5;
+                *srcNum = 99;
+            }
             break;
         case 4:
-            *baseNum = 2;
-            *dstNum = 5;
-            *srcNum = 6;
+            if (srcPath == true){
+                *baseNum = 2;
+                *dstNum = 5;
+                *srcNum = 6;
+            }else{ 
+                *baseNum = 2;
+                *dstNum = 5;
+                *srcNum = 99;
+            }
             break;
         case 5:
-            *baseNum = 2;
-            *dstNum = 3;
-            *srcNum = 6;
+            if (srcPath == true){
+                *baseNum = 2;
+                *dstNum = 3;
+                *srcNum = 6;
+            }else{
+                *baseNum = 2;
+                *dstNum = 3;
+                *srcNum = 99;
+            }
             break;
         case 6:
-            *baseNum = 2;
-            *dstNum = 3;
-            *srcNum = 4;
+            if (srcPath == true){
+                *baseNum = 2;
+                *dstNum = 3;
+                *srcNum = 4;
+            }
             break;
-        default:
+        default:  //well something went  wrong
             fprintf(stderr, "Internal error.\n");
             return(1);  //error
         }
     }else{
-        if (argc == 4){
+        if (srcPath == true){
             *baseNum = 2;
             *dstNum = 3;
             *srcNum = 4;
@@ -99,6 +159,7 @@ int positioning (int argc, bool *ipShow, bool *srcPath, int *ipNum, int *baseNum
     }
 }
 
+// checking arguments 
 int argvs(int argc, char *argv[], bool *ipShow, bool *srcPath, int *ipNum){
     bool found = false;
 
@@ -144,6 +205,7 @@ int argvs(int argc, char *argv[], bool *ipShow, bool *srcPath, int *ipNum){
     }
 }
 
+//validation of IPv4 
 int isValidIp4 (char *str) {
     int segs = 0;   //segment counter
     int chCount = 0;  //internal segment counter
