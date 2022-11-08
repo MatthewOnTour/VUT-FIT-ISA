@@ -8,7 +8,7 @@
 #include <arpa/inet.h>
 #include <netinet/in.h>
 
-#define PORT     8080 
+#define PORT     53     //port used for DNS comunication 
 #define MAXLINE 1024
 
 
@@ -16,12 +16,14 @@
 int argvs(int argc, char *argv[] ,bool *ipShow, bool *srcPath, int *ipNum);
 int isValidIp4 (char *str);
 int positioning (int argc, bool *ipShow, bool *srcPath, int *ipNum, int *baseNum, int *dstNum, int *srcNum);
+bool file_exists(const char *filename);
         /****end of function declarations****/
 
 /*****main function*****/
 int main(int argc, char *argv[]){
     FILE *fp;
-    int c;
+    char c[100];
+    int count = 0;
         /****flags and intgrs****/
     bool ipShow = false;    //flag for "-u"
     bool srcPath = false;   //flag for [SRC_FILEPATH]
@@ -30,6 +32,9 @@ int main(int argc, char *argv[]){
     int dstNum = 0;         //position of {DST_FILEPATH}
     int srcNum = 0;         //position of [SRC_FILEPATH]
         /****end of flags and intgrs****/
+
+
+    //TODO ak subor neexistuje tak error
 
     argvs(argc, argv, &ipShow, &srcPath, &ipNum);
     positioning(argc, &ipShow, &srcPath, &ipNum, &baseNum, &dstNum, &srcNum);
@@ -40,20 +45,32 @@ int main(int argc, char *argv[]){
             fp = stdin; /* read from standard input if no argument */
         }else{
             fp = fopen(argv[srcNum], "r");
-
             if (fp == NULL) {
                 fprintf(stderr, "cannot open %s\n", argv[srcNum]);
                 return 1;
             }
         }
-        while(1) {
-        c = fgetc(fp);
-        if(feof(fp)) { 
-            break ;
+        
+        while((c[count++] = getc(fp)) != EOF) {
+            if(feof(fp)) { 
+                break ;
+            }
         }
-        printf("%c", c);
+        c[count] = '\0';
+        printf("%s", c);
+    }else{
+        char *filename = argv[srcNum-1];
+        if (file_exists(filename)){
+            //This is good no action needed
+        }else{
+            fprintf(stderr, "File %s doesn't exist.", filename);
         }
     }
+
+    return 0;  //TODO
+
+
+    //base 64? C
 
     //Client side implementation of UDP from https://www.geeksforgeeks.org/udp-server-client-implementation-c/
 
@@ -88,10 +105,8 @@ int main(int argc, char *argv[]){
     buffer[n] = '\0'; 
     printf("Server : %s\n", buffer); 
     
-    close(sockfd);
-
     
-
+    close(sockfd);
     fclose(fp);
     return 0;
 }
@@ -99,11 +114,23 @@ int main(int argc, char *argv[]){
 
 /****functions****/
 
+bool file_exists(const char *filename)
+{
+    FILE *fp = fopen(filename, "r");
+    bool is_exist = false;
+    if (fp != NULL)
+    {
+        is_exist = true;
+        fclose(fp); // close the file
+    }
+    return is_exist;
+}
+
 int positioning (int argc, bool *ipShow, bool *srcPath, int *ipNum, int *baseNum, int *dstNum, int *srcNum){
     if(*ipShow){
         switch (*ipNum){
         case 3:
-            if (srcPath == true){
+            if (*srcPath == true){
                 *baseNum = 4;
                 *dstNum = 5;
                 *srcNum = 6;
@@ -114,7 +141,7 @@ int positioning (int argc, bool *ipShow, bool *srcPath, int *ipNum, int *baseNum
             }
             break;
         case 4:
-            if (srcPath == true){
+            if (*srcPath == true){
                 *baseNum = 2;
                 *dstNum = 5;
                 *srcNum = 6;
@@ -125,7 +152,7 @@ int positioning (int argc, bool *ipShow, bool *srcPath, int *ipNum, int *baseNum
             }
             break;
         case 5:
-            if (srcPath == true){
+            if (*srcPath == true){
                 *baseNum = 2;
                 *dstNum = 3;
                 *srcNum = 6;
@@ -136,7 +163,7 @@ int positioning (int argc, bool *ipShow, bool *srcPath, int *ipNum, int *baseNum
             }
             break;
         case 6:
-            if (srcPath == true){
+            if (*srcPath == true){
                 *baseNum = 2;
                 *dstNum = 3;
                 *srcNum = 4;
@@ -147,7 +174,7 @@ int positioning (int argc, bool *ipShow, bool *srcPath, int *ipNum, int *baseNum
             return(1);  //error
         }
     }else{
-        if (srcPath == true){
+        if (*srcPath == true){
             *baseNum = 2;
             *dstNum = 3;
             *srcNum = 4;
