@@ -7,23 +7,25 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
+#include "../base32.h"
+#include "../dns.h"
 
-#define PORT     53     //port used for DNS comunication 
-#define MAXLINE 1024
+#define PORT     49152     //port used for DNS comunication 
+#define BLOCK   50
+
 
 
             /****function declarations****/
-int argvs(int argc, char *argv[] ,bool *ipShow, bool *srcPath, int *ipNum);
+void argvs(int argc, char *argv[] ,bool *ipShow, bool *srcPath, int *ipNum);
 int isValidIp4 (char *str);
-int positioning (int argc, bool *ipShow, bool *srcPath, int *ipNum, int *baseNum, int *dstNum, int *srcNum);
+void positioning (int argc, bool *ipShow, bool *srcPath, int *ipNum, int *baseNum, int *dstNum, int *srcNum);
 bool file_exists(const char *filename);
         /****end of function declarations****/
 
 /*****main function*****/
 int main(int argc, char *argv[]){
     FILE *fp;
-    char c[100];
-    int count = 0;
+    unsigned char c[101];
         /****flags and intgrs****/
     bool ipShow = false;    //flag for "-u"
     bool srcPath = false;   //flag for [SRC_FILEPATH]
@@ -33,80 +35,97 @@ int main(int argc, char *argv[]){
     int srcNum = 0;         //position of [SRC_FILEPATH]
         /****end of flags and intgrs****/
 
-
-    //TODO ak subor neexistuje tak error
-
     argvs(argc, argv, &ipShow, &srcPath, &ipNum);
     positioning(argc, &ipShow, &srcPath, &ipNum, &baseNum, &dstNum, &srcNum);
     
-    /**file opening**/              //TODO make it in array or smth
+     /**file opening**/              //TODO make it in array or smth???
     if (srcPath == false){
         if (srcNum == 99){
             fp = stdin; /* read from standard input if no argument */
         }else{
-            fp = fopen(argv[srcNum], "r");
+            fp = fopen(argv[srcNum-1], "r");
             if (fp == NULL) {
-                fprintf(stderr, "cannot open %s\n", argv[srcNum]);
+                fprintf(stderr, "cannot open %s\n", argv[srcNum-1]);
                 return 1;
             }
         }
-        
-        while((c[count++] = getc(fp)) != EOF) {
-            if(feof(fp)) { 
-                break ;
-            }
-        }
-        c[count] = '\0';
-        printf("%s", c);
     }else{
         char *filename = argv[srcNum-1];
         if (file_exists(filename)){
             //This is good no action needed
+            //:D
         }else{
-            fprintf(stderr, "File %s doesn't exist.", filename);
+            fprintf(stderr, "File %s doesn't exist or path is invalid \n", filename);
+            return 1;
         }
     }
-
-    return 0;  //TODO
-
-
-    //base 64? C
-
-    //Client side implementation of UDP from https://www.geeksforgeeks.org/udp-server-client-implementation-c/
-
-    int sockfd; 
-    char buffer[MAXLINE]; 
-    char *hello = "Hello from client"; 
-    struct sockaddr_in     servaddr; 
+    //end file opening 
+    fp = fopen(argv[srcNum-1], "r");
+    while(1){
+        printf(".");
+        int sockfd; 
+        struct sockaddr_in     servaddr; 
     
-    // Creating socket file descriptor 
-    if ( (sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0 ) { 
-        perror("socket creation failed"); 
-        exit(EXIT_FAILURE); 
-    } 
+        // Creating socket file descriptor 
+        if ( (sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0 ) { 
+            perror("socket creation failed"); 
+            exit(EXIT_FAILURE); 
+        } 
     
-    memset(&servaddr, 0, sizeof(servaddr)); 
+        memset(&servaddr, 0, sizeof(servaddr)); 
         
-    // Filling server information 
-    servaddr.sin_family = AF_INET; 
-    servaddr.sin_port = htons(PORT); 
-    servaddr.sin_addr.s_addr = INADDR_ANY; 
+        // Filling server information 
+        servaddr.sin_family = AF_INET; 
+        servaddr.sin_port = htons(PORT); 
+        servaddr.sin_addr.s_addr = INADDR_ANY; 
+
+
+        unsigned char buf[101] = {0};
+        int fredNum ;
+
+        fredNum = fread(c, 1, BLOCK, fp);
+
+        if (fredNum == 0){
+            break;
+        }
+
+        base32_encode(c, BLOCK, buf, fredNum);
+
         
-    int n, len; 
-        
-    sendto(sockfd, (const char *)hello, strlen(hello), 
-        MSG_CONFIRM, (const struct sockaddr *) &servaddr,  
-            sizeof(servaddr)); 
-    printf("Hello message sent.\n"); 
-            
-    n = recvfrom(sockfd, (char *)buffer, MAXLINE,  
+
+        int lenB = strlen((const char *)buf);
+        char bufLen[100] = {0};
+        *bufLen = lenB;
+        memcpy(bufLen + 1, buf, lenB);
+
+        unsigned char packet[512] = {0};
+        struct dns_header *header = (struct dns_header *)packet;
+        header->id = htons(0002);
+        header->rd = 1;
+        header->qdcount = htons(1);
+
+        unsigned char *afterHeader = packet + sizeof(struct dns_header);
+
+        memcpy(afterHeader, buf, strlen((const char *)buf));
+
+        unsigned char *afterData = packet + sizeof(struct dns_header) + strlen((const char *)buf);
+
+        memcpy(afterData, argv[baseNum+1], strlen(argv[baseNum])); //TODO check base num
+
+        sendto(sockfd, packet, strlen((const char *)packet), MSG_CONFIRM, (const struct sockaddr *) &servaddr, sizeof(servaddr)); 
+        //unsigned int n, len;
+        //char buffer[MAX_BUFFER_SIZE];  
+        /* n = recvfrom(sockfd, (char *)buffer, MAX_BUFFER_SIZE,  
                 MSG_WAITALL, (struct sockaddr *) &servaddr, 
                 &len); 
-    buffer[n] = '\0'; 
-    printf("Server : %s\n", buffer); 
+        buffer[n] = '\0'; 
+        printf("Server : %s\n", buffer); */
     
+        close(sockfd);
+    }
     
-    close(sockfd);
+
+
     fclose(fp);
     return 0;
 }
@@ -126,7 +145,7 @@ bool file_exists(const char *filename)
     return is_exist;
 }
 
-int positioning (int argc, bool *ipShow, bool *srcPath, int *ipNum, int *baseNum, int *dstNum, int *srcNum){
+void positioning (int argc, bool *ipShow, bool *srcPath, int *ipNum, int *baseNum, int *dstNum, int *srcNum){
     if(*ipShow){
         switch (*ipNum){
         case 3:
@@ -171,7 +190,7 @@ int positioning (int argc, bool *ipShow, bool *srcPath, int *ipNum, int *baseNum
             break;
         default:  //well something went  wrong
             fprintf(stderr, "Internal error.\n");
-            return(1);  //error
+            return;  //error
         }
     }else{
         if (*srcPath == true){
@@ -187,13 +206,13 @@ int positioning (int argc, bool *ipShow, bool *srcPath, int *ipNum, int *baseNum
 }
 
 // checking arguments 
-int argvs(int argc, char *argv[], bool *ipShow, bool *srcPath, int *ipNum){
+void argvs(int argc, char *argv[], bool *ipShow, bool *srcPath, int *ipNum){
     bool found = false;
 
     if (argc < 3 || argc > 6){
         fprintf(stderr, "Invalid number of arguments.\n");
         fprintf(stderr, "Usage: dns_sender [-u UPSTREAM_DNS_IP] {BASE_HOST} {DST_FILEPATH} [SRC_FILEPATH].\n");
-        return(1);  //error
+        return;  //error
     }
 
     for (int a = 1; a < argc; a++){
@@ -211,7 +230,7 @@ int argvs(int argc, char *argv[], bool *ipShow, bool *srcPath, int *ipNum){
             }else{
                 fprintf(stderr, "Invalid input in arguments.\n");
                 fprintf(stderr, "Usage: dns_sender [-u UPSTREAM_DNS_IP] {BASE_HOST} {DST_FILEPATH} [SRC_FILEPATH].\n");
-                return(1);  //error
+                return;  //error
             }
             *ipNum = a+1;
         }
@@ -227,7 +246,7 @@ int argvs(int argc, char *argv[], bool *ipShow, bool *srcPath, int *ipNum){
         }else{
             fprintf(stderr, "Invalid input in arguments.\n");
             fprintf(stderr, "Usage: dns_sender [-u UPSTREAM_DNS_IP] {BASE_HOST} {DST_FILEPATH} [SRC_FILEPATH].\n");
-            return(1);  //error
+            return;  //error
         }
     }
 }

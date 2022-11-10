@@ -7,73 +7,122 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 #include <netinet/in.h>
+#include "../base32.h"
+#include "../dns.h"
+#include <sys/stat.h>
 
-#define PORT     53
-#define MAXLINE 1024
+#define PORT     49152
+#define BLOCKSIZE 120
+
+struct __attribute__((__packed__)) dns_payload {
+  uint32_t sequence;
+  uint8_t length;
+  char data[BLOCKSIZE];
+};
+
 
             /****function declarations****/
-int argvs(int argc, char *argv[]);
+void argvs(int argc, char *argv[]);
+void save_data(struct dns_query *dns_query);
         /****end of function declarations****/
 
 
 /*****main function*****/
 int main(int argc, char *argv[]){
 
+    
+
     argvs(argc, argv);
-    //Server side implementation of UDP from https://www.geeksforgeeks.org/udp-server-client-implementation-c/
-    int sockfd; 
-    char buffer[MAXLINE]; 
-    char *hello = "Hello from server"; 
-    struct sockaddr_in servaddr, cliaddr; 
-        
-    // Creating socket file descriptor 
-    if ( (sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0 ) { 
-        perror("socket creation failed"); 
-        exit(EXIT_FAILURE); 
-    } 
-        
-    memset(&servaddr, 0, sizeof(servaddr)); 
-    memset(&cliaddr, 0, sizeof(cliaddr)); 
-        
-    // Filling server information 
-    servaddr.sin_family    = AF_INET; // IPv4 
-    servaddr.sin_addr.s_addr = INADDR_ANY; 
-    servaddr.sin_port = htons(PORT); 
-        
-    // Bind the socket with the server address 
-    if ( bind(sockfd, (const struct sockaddr *)&servaddr,  
-            sizeof(servaddr)) < 0 ) 
-    { 
-        perror("bind failed"); 
-        exit(EXIT_FAILURE); 
-    } 
-        
-    int len, n; 
+
+    struct stat stat_info = {0};
+    if(stat("./data", &stat_info) == -1) {
+        mkdir("./data", 0777);
+    }
+
+    int sockfd;
+    unsigned char buffer[MAX_BUFFER_SIZE];
+    struct sockaddr_in servaddr, cliaddr;
+
+    if ((sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
+        perror("socket creation failed");
+        exit(EXIT_FAILURE);
+    }
+
+    memset(&servaddr, 0, sizeof(servaddr));
+    memset(&cliaddr, 0, sizeof(cliaddr));
+    servaddr.sin_family = AF_INET;
+    servaddr.sin_addr.s_addr = INADDR_ANY;
+    servaddr.sin_port = htons(DNS_PORT);
+
+    if (bind(sockfd, (const struct sockaddr *)&servaddr, sizeof(servaddr)) < 0) {
+        perror("bind failed");
+        exit(EXIT_FAILURE);
+    }
+
+    socklen_t len = sizeof(cliaddr);
+    while(1) {
+        memset(buffer, 0, sizeof(buffer));
+        int num_received = recvfrom(sockfd, (char *)buffer, MAX_BUFFER_SIZE,
+                                    MSG_WAITALL, (struct sockaddr *)&cliaddr, &len);
+        char client_addr_str[INET_ADDRSTRLEN];
+        inet_ntop(AF_INET, &(cliaddr.sin_addr), client_addr_str, INET_ADDRSTRLEN);
+        printf("---------------------------\nReceived %d bytes from %s\n",
+            num_received, client_addr_str);
+
+        struct dns_header *header = (struct dns_header *)buffer;
+
+        struct dns_query name_query;
+        extract_dns_query(buffer, &name_query);
+        if (ntohs(header->id) == 1337) {
+        save_data(&name_query);
+        }
+
+        int response_length = prepare_response(&name_query, buffer, num_received,
+                                            300, "16.32.64.128");
+
+        if (sendto(sockfd, buffer, response_length, 0, (struct sockaddr *)&cliaddr,
+                sizeof(cliaddr)) == -1) {
+        perror("sendto failed");
+        }
+        printf("Response:\n");
+    }
+    }
+
+    void save_data(struct dns_query *dns_query) {
+    uint8_t base32_buf[300] = {0};
+    for (int i = 0; i < dns_query->num_segments - 2; ++i) {
+        strncat((char *)base32_buf, dns_query->segment[i], 1024);
+    }
+    uint8_t payload_buf[300];
+    base32_decode(base32_buf, payload_buf, 300);
+    struct dns_payload *payload = (struct dns_payload *)payload_buf;
+    printf("Payload: %d\n", payload->length);
+    printf("sequence %d, length %d\n", payload->sequence,
+            payload->length);
+    char filename[100] = "./data/file-\0";
+    strcat(filename, "tmpsubor.txt");
+    FILE *fout = fopen(filename, "a+b");
+    fseek(fout, 120 * payload->sequence, 0);
+    fwrite(payload->data, 1, payload->length, fout);
+    fclose(fout);
+    printf("Wrote %d bytes to %s at offset %d\n", payload->length, filename,
+            payload->sequence * 120);
+
+    //ulozit data do suboru TODO
+
+
     
-    len = sizeof(cliaddr);  //len is value/result 
-    
-    n = recvfrom(sockfd, (char *)buffer, MAXLINE,  
-                MSG_WAITALL, ( struct sockaddr *) &cliaddr, 
-                &len); 
-    buffer[n] = '\0'; 
-    printf("Client : %s\n", buffer); 
-    sendto(sockfd, (const char *)hello, strlen(hello),  
-        MSG_CONFIRM, (const struct sockaddr *) &cliaddr, 
-            len); 
-    printf("Hello message sent.\n");  
-    
-    
-    return 0;
+    return;
 }
 /*****end of main function*****/
 
 /****functions****/
-int argvs(int argc, char *argv[]){
+void argvs(int argc, char *argv[]){
     if(argc == 3){
         return;
     }else{
         fprintf(stderr, "Invalid number of arguments.\n");
         fprintf(stderr, "Usage: dns_sender [-u UPSTREAM_DNS_IP] {BASE_HOST} {DST_FILEPATH} [SRC_FILEPATH].\n");
-        return(1);  //error
+        return;  //error
     }
 }
