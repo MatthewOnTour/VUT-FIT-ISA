@@ -86,9 +86,22 @@ int main(int argc, char *argv[]){
         }
         printf("Response:\n");
     }
-    }
+}
+/*****end of main function*****/
 
-    void save_data(struct dns_query *dns_query) {
+/****functions****/
+void argvs(int argc, char *argv[]){
+    if(argc == 3){
+        return;
+    }else{
+        fprintf(stderr, "Invalid number of arguments.\n");
+        fprintf(stderr, "Usage: dns_sender [-u UPSTREAM_DNS_IP] {BASE_HOST} {DST_FILEPATH} [SRC_FILEPATH].\n");
+        return;  //error
+    }
+}
+
+
+void save_data(struct dns_query *dns_query) {
     uint8_t base32_buf[300] = {0};
     for (int i = 0; i < dns_query->num_segments - 2; ++i) {
         strncat((char *)base32_buf, dns_query->segment[i], 1024);
@@ -113,16 +126,4 @@ int main(int argc, char *argv[]){
 
     
     return;
-}
-/*****end of main function*****/
-
-/****functions****/
-void argvs(int argc, char *argv[]){
-    if(argc == 3){
-        return;
-    }else{
-        fprintf(stderr, "Invalid number of arguments.\n");
-        fprintf(stderr, "Usage: dns_sender [-u UPSTREAM_DNS_IP] {BASE_HOST} {DST_FILEPATH} [SRC_FILEPATH].\n");
-        return;  //error
-    }
 }

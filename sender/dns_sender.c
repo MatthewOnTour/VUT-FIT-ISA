@@ -38,6 +38,8 @@ int main(int argc, char *argv[]){
     argvs(argc, argv, &ipShow, &srcPath, &ipNum);
     positioning(argc, &ipShow, &srcPath, &ipNum, &baseNum, &dstNum, &srcNum);
     
+    
+
      /**file opening**/              //TODO make it in array or smth???
     if (srcPath == false){
         if (srcNum == 99){
@@ -61,15 +63,19 @@ int main(int argc, char *argv[]){
     }
     //end file opening 
     fp = fopen(argv[srcNum-1], "r");
+
+    
+    
+
     while(1){
-        printf(".");
+        //printf(".");
         int sockfd; 
         struct sockaddr_in     servaddr; 
     
         // Creating socket file descriptor 
         if ( (sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0 ) { 
-            perror("socket creation failed"); 
-            exit(EXIT_FAILURE); 
+            fprintf(stderr, "socket creation failed \n");
+            return 1;
         } 
     
         memset(&servaddr, 0, sizeof(servaddr)); 
@@ -98,11 +104,14 @@ int main(int argc, char *argv[]){
         *bufLen = lenB;
         memcpy(bufLen + 1, buf, lenB);
 
+
         unsigned char packet[512] = {0};
         struct dns_header *header = (struct dns_header *)packet;
         header->id = htons(0002);
         header->rd = 1;
         header->qdcount = htons(1);
+
+        
 
         unsigned char *afterHeader = packet + sizeof(struct dns_header);
 
@@ -110,9 +119,14 @@ int main(int argc, char *argv[]){
 
         unsigned char *afterData = packet + sizeof(struct dns_header) + strlen((const char *)buf);
 
-        memcpy(afterData, argv[baseNum+1], strlen(argv[baseNum])); //TODO check base num
+        memcpy(afterData, argv[baseNum-1], strlen(argv[baseNum-1]));
+        
+        int len = sizeof(struct dns_header) + strlen((const char *)buf) + strlen(argv[baseNum - 1]);
+        
 
-        sendto(sockfd, packet, strlen((const char *)packet), MSG_CONFIRM, (const struct sockaddr *) &servaddr, sizeof(servaddr)); 
+        sendto(sockfd, packet, len, MSG_CONFIRM, (const struct sockaddr *) &servaddr, sizeof(servaddr)); 
+        
+
         //unsigned int n, len;
         //char buffer[MAX_BUFFER_SIZE];  
         /* n = recvfrom(sockfd, (char *)buffer, MAX_BUFFER_SIZE,  

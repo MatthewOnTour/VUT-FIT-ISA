@@ -1,13 +1,20 @@
-FILES = src/reciver/dns_reciver_events.c src/reciver/dns_reciver.c src/sender/dns_sender_events.c src/sender/dns_senderc
-CFLAGS = -Wall -lpcap 
-CC = gcc
-OUTPUT = sender reciver
+CFLAGS=-Wall -pipe -pedantic -Werror -g
+FILES_SENDER=sender/dns_sender.c base32.c dns.c sender/dns_sender_events.c
+FILES_RECEIVER=receiver/dns_receiver.c base32.c dns.c receiver/dns_receiver_events.c
 
-.PHONY: all sender reciver clean
-all: sender reciver
 
-sender:
+all : $sender $receiver
 
-reciver:
+sender : $sender
+receiver : $receiver
 
-clean: $(RM) $(OUTPUT)
+
+$sender : $(FILES_SENDER)
+	gcc $(FILES_SENDER) $(CFLAGS) -o dns_sender
+
+
+$receiver : $(FILES_RECEIVER)
+		gcc $(FILES_RECEIVER) $(CFLAGS) -o dns_receiver 
+
+clean :
+	rm -f *.o dns_sender dns_receiver
