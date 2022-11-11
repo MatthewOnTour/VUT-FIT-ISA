@@ -11,7 +11,7 @@
 #include "../dns.h"
 #include <sys/stat.h>
 
-#define PORT     49152
+#define PORT      49152
 #define BLOCKSIZE 120
 
 struct __attribute__((__packed__)) dns_payload {
@@ -52,7 +52,7 @@ int main(int argc, char *argv[]){
     memset(&cliaddr, 0, sizeof(cliaddr));
     servaddr.sin_family = AF_INET;
     servaddr.sin_addr.s_addr = INADDR_ANY;
-    servaddr.sin_port = htons(DNS_PORT);
+    servaddr.sin_port = htons(PORT);
 
     if (bind(sockfd, (const struct sockaddr *)&servaddr, sizeof(servaddr)) < 0) {
         perror("bind failed");
@@ -70,21 +70,22 @@ int main(int argc, char *argv[]){
             num_received, client_addr_str);
 
         struct dns_header *header = (struct dns_header *)buffer;
-
+        
         struct dns_query name_query;
         extract_dns_query(buffer, &name_query);
-        if (ntohs(header->id) == 1337) {
+        if (ntohs(header->id) == 0002) {
         save_data(&name_query);
         }
-
+        
         int response_length = prepare_response(&name_query, buffer, num_received,
                                             300, "16.32.64.128");
 
         if (sendto(sockfd, buffer, response_length, 0, (struct sockaddr *)&cliaddr,
                 sizeof(cliaddr)) == -1) {
         perror("sendto failed");
+
+        
         }
-        printf("Response:\n");
     }
 }
 /*****end of main function*****/

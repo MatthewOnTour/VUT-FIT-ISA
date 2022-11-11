@@ -10,7 +10,7 @@
 #include "../base32.h"
 #include "../dns.h"
 
-#define PORT     49152     //port used for DNS comunication 
+#define PORT    49152     //port used for DNS comunication 
 #define BLOCK   50
 
 
@@ -62,11 +62,28 @@ int main(int argc, char *argv[]){
         }
     }
     //end file opening 
+
+    //qname 
+    char *qname = malloc(strlen(argv[baseNum - 1])+1);
+    memcpy(qname+1, argv[baseNum - 1], strlen(argv[baseNum - 1]));
+    char *ptr = malloc(strlen(argv[baseNum - 1]));
+    ptr = strtok(qname+1, ".");
+    *qname = strlen(ptr);
+    int lenQ = strlen(ptr);
+    ptr = strtok(NULL, ".");
+    qname[lenQ+1] = strlen(ptr);
+
+
+    
+
+    for (int i = 0; i < strlen(qname)+1; i++)
+    {
+        printf("%d\n", qname[i]);
+    }
+    
+    
     fp = fopen(argv[srcNum-1], "r");
-
     
-    
-
     while(1){
         //printf(".");
         int sockfd; 
@@ -99,11 +116,11 @@ int main(int argc, char *argv[]){
 
         
 
-        int lenB = strlen((const char *)buf);
+        int lenB = strlen((const char *)buf) + 1;
         char bufLen[100] = {0};
-        *bufLen = lenB;
-        memcpy(bufLen + 1, buf, lenB);
-
+        bufLen[0] = lenB - 1;
+        memcpy(bufLen + 1, buf, lenB - 1);
+        memcpy(buf, bufLen, lenB);
 
         unsigned char packet[512] = {0};
         struct dns_header *header = (struct dns_header *)packet;
@@ -119,27 +136,27 @@ int main(int argc, char *argv[]){
 
         unsigned char *afterData = packet + sizeof(struct dns_header) + strlen((const char *)buf);
 
-        memcpy(afterData, argv[baseNum-1], strlen(argv[baseNum-1]));
+        memcpy(afterData, qname, strlen(argv[baseNum-1]));
         
-        int len = sizeof(struct dns_header) + strlen((const char *)buf) + strlen(argv[baseNum - 1]);
+        int len = sizeof(struct dns_header) + strlen((const char *)buf) + strlen(qname);
         
 
         sendto(sockfd, packet, len, MSG_CONFIRM, (const struct sockaddr *) &servaddr, sizeof(servaddr)); 
         
 
-        //unsigned int n, len;
-        //char buffer[MAX_BUFFER_SIZE];  
-        /* n = recvfrom(sockfd, (char *)buffer, MAX_BUFFER_SIZE,  
+        unsigned int n, lenC;
+        char buffer[MAX_BUFFER_SIZE];  
+        n = recvfrom(sockfd, (char *)buffer, MAX_BUFFER_SIZE,  
                 MSG_WAITALL, (struct sockaddr *) &servaddr, 
-                &len); 
+                &lenC); 
         buffer[n] = '\0'; 
-        printf("Server : %s\n", buffer); */
+        printf("Server : %s\n", buffer);
     
         close(sockfd);
     }
     
-
-
+    //free(qname);
+    //free(ptr);
     fclose(fp);
     return 0;
 }
