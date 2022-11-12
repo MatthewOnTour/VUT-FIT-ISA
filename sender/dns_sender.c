@@ -97,13 +97,13 @@ int main(int argc, char *argv[]){
 
         unsigned char buf[101] = {0};
 
-        int fredNum = fread(c, sizeof(char), BLOCK, fp);
+        int fredNum = fread(c, 1, BLOCK/2, fp);
         
         if (fredNum == 0){
             break;
         }
         
-        base32_encode(c, fredNum, buf, BLOCK);    //TODO changed fredNum with Block
+        base32_encode(c, fredNum, buf, BLOCK);
 
         int lenB = strlen((const char *)buf) + 1;
         char bufLen[100] = {0};
@@ -116,18 +116,23 @@ int main(int argc, char *argv[]){
         header->id = htons(2222);
         header->rd = 1;
         header->qdcount = htons(1);
+        
         unsigned char *afterHeader = packet + sizeof(struct dns_header);
 
         memcpy(afterHeader, buf, strlen((const char *)buf));
 
         unsigned char *afterData = packet + sizeof(struct dns_header) + strlen((const char *)buf);
 
-        memcpy(afterData, qname, strlen(argv[baseNum-1])+1);            //TODO added + 1
-        
-        int len = sizeof(struct dns_header) + strlen((const char *)buf) + strlen(qname);
+        memcpy(afterData, qname, strlen(argv[baseNum-1])+1);
+     
 
-        //TODO add dns footer
-        
+        struct dns_query *footer = (struct dns_query *)packet;
+        footer->qclass = htons(1);
+        footer->type = htons(1);
+
+        int len = sizeof(struct dns_header) + strlen((const char *)buf) + strlen(qname);
+                printf("\n---%s---\n",buf);
+
         sendto(sockfd, packet, len+1, MSG_CONFIRM, (const struct sockaddr *) &servaddr, sizeof(servaddr)); 
         
         unsigned int n, lenC;
