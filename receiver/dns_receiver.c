@@ -103,12 +103,12 @@ void argvs(int argc, char *argv[]){
 void save_data(struct dns_query *dns_query) {
     uint8_t base32_buf[300] = {0};
     for (int i = 0; i < dns_query->num_segments - 2; ++i) {
-        strncat((char *)base32_buf, dns_query->segment[i], 301);
+        strncat((char *)base32_buf, dns_query->segment[i], 299);
     }
     uint8_t payload_buf[300];
     base32_decode(base32_buf, payload_buf, 300);
 
-    printf("\n\n%s\n\n", payload_buf);
+    printf("---\n\n---%s---\n\n---", payload_buf);
 
     struct dns_payload *payload = (struct dns_payload *)payload_buf;
     printf("Payload: %d\n", payload->length);
