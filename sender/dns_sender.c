@@ -86,14 +86,13 @@ int main(int argc, char *argv[]){
             fprintf(stderr, "socket creation failed \n");
             return 1;
         } 
-    
+        
         memset(&servaddr, 0, sizeof(servaddr)); 
         
         // Filling server information 
         servaddr.sin_family = AF_INET; 
         servaddr.sin_port = htons(PORT); 
-        servaddr.sin_addr.s_addr = INADDR_ANY; 
-
+        servaddr.sin_addr.s_addr = INADDR_ANY; //TODO inet atom pri priznaku -u inak z file /etc/resolv.conf vybrat default DNS
 
         unsigned char buf[101] = {0};
 
@@ -123,15 +122,16 @@ int main(int argc, char *argv[]){
 
         unsigned char *afterData = packet + sizeof(struct dns_header) + strlen((const char *)buf);
 
-        memcpy(afterData, qname, strlen(argv[baseNum-1])+1);
+        memcpy(afterData, qname, strlen(qname)+1);
      
+        unsigned char *afterQname = packet + sizeof(struct dns_header) + strlen((const char *)buf)+strlen((const char *)qname)-1;
 
-        struct dns_query *footer = (struct dns_query *)packet;
-        footer->qclass = htons(1);
-        footer->type = htons(1);
+        struct dns_response_trailer *trailer = (struct dns_response_trailer *)afterQname;
+        trailer->qclass = htons(QTYPE_A);
+        trailer->type = htons(QCLASS_INET);
 
-        int len = sizeof(struct dns_header) + strlen((const char *)buf) + strlen(qname);
-                printf("\n---%s---\n",buf);
+
+        int len = sizeof(struct dns_header) + strlen((const char *)buf) + strlen(qname) + sizeof(trailer->qclass) + sizeof(trailer->type);
 
         sendto(sockfd, packet, len+1, MSG_CONFIRM, (const struct sockaddr *) &servaddr, sizeof(servaddr)); 
         
@@ -139,7 +139,7 @@ int main(int argc, char *argv[]){
          
         n = recvfrom(sockfd, (char *)buffer, MAX_BUFFER_SIZE, MSG_WAITALL, (struct sockaddr *) &servaddr, &lenC); 
         buffer[n] = '\0'; 
-        printf("Server : %s\n", buffer);
+        
     
         close(sockfd);
     }

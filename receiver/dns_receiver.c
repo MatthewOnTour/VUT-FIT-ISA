@@ -80,7 +80,7 @@ int main(int argc, char *argv[]){
 
         if (sendto(sockfd, buffer, response_length, 0, (struct sockaddr *)&cliaddr,
                 sizeof(cliaddr)) == -1) {
-        perror("sendto failed");
+        perror("sendto failed"); //TODO make diff err
 
         
         }
@@ -108,8 +108,6 @@ void save_data(struct dns_query *dns_query) {
     uint8_t payload_buf[300];
     base32_decode(base32_buf, payload_buf, 300);
 
-    printf("---\n\n---%s---\n\n---", payload_buf);
-
     struct dns_payload *payload = (struct dns_payload *)payload_buf;
     printf("Payload: %d\n", payload->length);
     printf("sequence %d, length %d\n", payload->sequence,
@@ -124,9 +122,5 @@ void save_data(struct dns_query *dns_query) {
     printf("Wrote %d bytes to %s at offset %d\n", payload->length, filename,
             payload->sequence * 120);
 
-    //ulozit data do suboru TODO nefunguje
-
-
-    
     return;
 }
