@@ -11,7 +11,7 @@
 #include "../dns.h"
 #include "sys/time.h"
 
-#define PORT    20000     //port used for DNS comunication 
+#define PORT    53     //port used for DNS comunication 
 #define BLOCK   50
 
 
@@ -22,10 +22,13 @@ int isValidIp4 (char *str);
 void positioning (int argc, bool *ipShow, bool *srcPath, int *ipNum, int *baseNum, int *dstNum, int *srcNum);
 bool file_exists(const char *filename);
         /****end of function declarations****/
+        
 
 /*****main function*****/
 int main(int argc, char *argv[]){
     FILE *fp;
+    FILE *fip;
+    char fileIP[255];
     unsigned char c[101];
         /****flags and intgrs****/
     bool ipShow = false;    //flag for "-u"
@@ -36,26 +39,22 @@ int main(int argc, char *argv[]){
     int srcNum = 0;         //position of [SRC_FILEPATH]
         /****end of flags and intgrs****/
 
-    
-
     argvs(argc, argv, &ipShow, &srcPath, &ipNum);
     positioning(argc, &ipShow, &srcPath, &ipNum, &baseNum, &dstNum, &srcNum);
     
-    
-
      /**file opening**/              //TODO make it in array or smth???
     if (srcPath == false){
         if (srcNum == 99){
             fp = stdin; /* read from standard input if no argument */
         }else{
-            fp = fopen(argv[srcNum-1], "r");
+            fp = fopen(argv[srcNum], "r");
             if (fp == NULL) {
-                fprintf(stderr, "cannot open %s\n", argv[srcNum-1]);
+                fprintf(stderr, "cannot open %s\n", argv[srcNum]);
                 return 1;
             }
         }
     }else{
-        char *filename = argv[srcNum-1];
+        char *filename = argv[srcNum];
         if (file_exists(filename)){
             //This is good no action needed
             //:D
@@ -64,51 +63,82 @@ int main(int argc, char *argv[]){
             return 1;
         }
     }
+    char *filename = "/etc/resolv.conf";
+    if (file_exists(filename)){
+            //This is good no action needed
+            //:D
+    }else{
+        fprintf(stderr, "File %s doesn't exist or path is invalid \n", filename);
+        return 1;
+    }
+
+    fip = fopen("/etc/resolv.conf" , "r");
+    char *ipTmp;
+    if(fip == NULL) {
+      fprintf(stderr, "File /etc/resolv.conf doesn't exist or path is invalid \n");
+      return(1);
+   }
+
+    while (fgets (fileIP, 255, fip) != NULL){
+    char* line = strstr(fileIP, "nameserver");
+    if (line){
+            ipTmp = strstr(line, " ");
+            char* help = strtok(ipTmp, " ");
+            ipTmp = help;
+            break;
+        }
+        
+    }
+    
+    fclose(fip);
     //end file opening 
 
-    //qname 
-    char *qname = malloc(strlen(argv[baseNum - 1])+1);
-    memcpy(qname+1, argv[baseNum - 1], strlen(argv[baseNum - 1]));
-    char *ptr = malloc(strlen(argv[baseNum - 1]));
+    //qname
+
+    printf("\n\n%s\n\n",argv[baseNum]);
+
+    char *qname = malloc(strlen(argv[baseNum])+1);
+    memcpy(qname+1, argv[baseNum], strlen(argv[baseNum]));
+    char *ptr = malloc(strlen(argv[baseNum]));
     ptr = strtok(qname+1, ".");
     *qname = strlen(ptr);
     int lenQ = strlen(ptr);
     ptr = strtok(NULL, ".");
-    qname[lenQ+1] = strlen(ptr);
+    qname[lenQ+1] = strlen(ptr);  
 
-    fp = srcPath == false ? stdin : fopen(argv[srcNum-1], "r");
+    printf("\n\n%s\n\n", qname);
+
+    
+    fp = srcPath == false ? stdin : fopen(argv[srcNum], "r");
     //sending BASE_HOST while will be done just once
     while(1){
         int sockfd; 
         struct sockaddr_in     servaddr; 
         char buffer[MAX_BUFFER_SIZE]; 
         // Creating socket file descriptor 
-        if ( (sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0 ) { 
+        if ((sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0 ) { 
             fprintf(stderr, "socket creation failed \n");
             return 1;
         }
-        fd_set readfds, masterfds;
-        struct timeval timeout;
-        timeout.tv_sec = 10;                    /*set the timeout to 10 seconds*/
-        timeout.tv_usec = 0;
-        FD_ZERO(&masterfds);
-        FD_SET(sockfd, &masterfds);
-        
-        
+
         memset(&servaddr, 0, sizeof(servaddr)); 
         
         // Filling server information 
         servaddr.sin_family = AF_INET; 
-        servaddr.sin_port = htons(PORT); 
-        servaddr.sin_addr.s_addr = INADDR_ANY; //TODO inet atom pri priznaku -u inak z file /etc/resolv.conf vybrat default DNS
+        servaddr.sin_port = htons(PORT);
 
+        if(ipShow == true){
+            servaddr.sin_addr.s_addr = inet_addr(argv[ipNum]);
+        }else{
+            servaddr.sin_addr.s_addr = inet_addr(ipTmp);
+        }
+        
         unsigned char buf[101] = {0};
 
-        char *c = argv[baseNum-1];
+        char *c = argv[baseNum];
         
-        base32_encode((const unsigned char *)c, strlen(argv[baseNum-1]), buf, BLOCK);
-        printf("\n%s\n", buf);
-
+        base32_encode((const unsigned char *)c, strlen(argv[baseNum]), buf, BLOCK);
+        
         int lenB = strlen((const char *)buf) + 1;
         char bufLen[100] = {0};
         bufLen[0] = lenB - 1;
@@ -136,32 +166,27 @@ int main(int argc, char *argv[]){
         trailer->type = htons(QCLASS_INET);
 
         int len = sizeof(struct dns_header) + strlen((const char *)buf) + strlen(qname) + sizeof(trailer->qclass) + sizeof(trailer->type);
-
+        
         sendto(sockfd, packet, len+1, MSG_CONFIRM, (const struct sockaddr *) &servaddr, sizeof(servaddr)); 
         
         unsigned int n, lenC;
+
+        struct timeval timeout;      
+            timeout.tv_sec = 5;
+            timeout.tv_usec = 0;
+        if (setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) > 0)
+        {    
+            perror("set timeout failed");
+            exit(EXIT_FAILURE);
+        }
+        if((n = recvfrom(sockfd, (char *)buffer, MAX_BUFFER_SIZE, MSG_WAITALL, (struct sockaddr *) &servaddr, &lenC)) == -1){
+            fprintf(stderr, "BASEHOST not same or connection timeout \n");
+            return 1;
+        }
+
+        buffer[n] = '\0'; 
+        printf("Server: %s \n", buffer);
         
-        if (select(sockfd+1, &readfds, NULL, NULL, &timeout) < 0)
-        {
-            perror("on select");
-            exit(1);
-        }
-
-        if (FD_ISSET(sockfd, &readfds))
-        {
-            n = recvfrom(sockfd, (char *)buffer, MAX_BUFFER_SIZE, MSG_WAITALL, (struct sockaddr *) &servaddr, &lenC); 
-            buffer[n] = '\0'; 
-            printf("Server: %s \n", buffer);
-
-            memcpy(&readfds, &masterfds, sizeof(fd_set));
-        }
-        else
-        {
-            // the socket timedout
-            fprintf(stderr, "BASE not same.!!!\n");
-            return 0;
-        }
-    
         close(sockfd);
         break;
     }
@@ -174,28 +199,23 @@ int main(int argc, char *argv[]){
         if ( (sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0 ) { 
             fprintf(stderr, "socket creation failed \n");
             return 1;
-        }
+        } 
 
-        fd_set readfds, masterfds;
-        struct timeval timeout;
-        timeout.tv_sec = 10;                    /*set the timeout to 10 seconds*/
-        timeout.tv_usec = 0;
-        FD_ZERO(&masterfds);
-        FD_SET(sockfd, &masterfds);
-        
         memset(&servaddr, 0, sizeof(servaddr)); 
         
         // Filling server information 
         servaddr.sin_family = AF_INET; 
         servaddr.sin_port = htons(PORT); 
-        servaddr.sin_addr.s_addr = INADDR_ANY; //TODO inet atom pri priznaku -u inak z file /etc/resolv.conf vybrat default DNS
-
+        if(ipShow == true){
+            servaddr.sin_addr.s_addr = inet_addr(argv[ipNum]);
+        }else{
+            servaddr.sin_addr.s_addr = inet_addr(ipTmp);
+        }
         unsigned char buf[101] = {0};
 
-        char *c = argv[dstNum-1];
+        char *c = argv[dstNum];
         
-        base32_encode((const unsigned char *)c, strlen(argv[dstNum-1]), buf, BLOCK);
-        printf("\n%s\n", buf);
+        base32_encode((const unsigned char *)c, strlen(argv[dstNum]), buf, BLOCK);
 
         int lenB = strlen((const char *)buf) + 1;
         char bufLen[100] = {0};
@@ -229,25 +249,20 @@ int main(int argc, char *argv[]){
         sendto(sockfd, packet, len+1, MSG_CONFIRM, (const struct sockaddr *) &servaddr, sizeof(servaddr)); 
         
         unsigned int n, lenC;
+        
          
-       if (select(sockfd+1, &readfds, NULL, NULL, &timeout) < 0)
-        {
-            perror("on select");
-            exit(1);
-        }
+        struct timeval timeout;      
+            timeout.tv_sec = 5;
+            timeout.tv_usec = 0;
 
-        if (FD_ISSET(sockfd, &readfds))
-        {
-            n = recvfrom(sockfd, (char *)buffer, MAX_BUFFER_SIZE, MSG_WAITALL, (struct sockaddr *) &servaddr, &lenC); 
-            buffer[n] = '\0'; 
-            printf("Server: %s \n", buffer);
-
-            memcpy(&readfds, &masterfds, sizeof(fd_set));
+        if (setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) > 0)
+        {    
+            perror("set timeout failed");
+            exit(EXIT_FAILURE);
         }
-        else
-        {
-            // the socket timedout
-            return 0;
+        if((n = recvfrom(sockfd, (char *)buffer, MAX_BUFFER_SIZE, MSG_WAITALL, (struct sockaddr *) &servaddr, &lenC)) == -1){
+            fprintf(stderr, "DST_FILEPATH did not reach / connection timeout \n");
+            return 1;
         }
     
         close(sockfd);
@@ -262,22 +277,18 @@ int main(int argc, char *argv[]){
         if ( (sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0 ) { 
             fprintf(stderr, "socket creation failed \n");
             return 1;
-        }
-
-        fd_set readfds, masterfds;
-        struct timeval timeout;
-        timeout.tv_sec = 10;                    /*set the timeout to 10 seconds*/
-        timeout.tv_usec = 0;
-        FD_ZERO(&masterfds);
-        FD_SET(sockfd, &masterfds);
+        } 
         
         memset(&servaddr, 0, sizeof(servaddr)); 
         
         // Filling server information 
         servaddr.sin_family = AF_INET; 
         servaddr.sin_port = htons(PORT); 
-        servaddr.sin_addr.s_addr = INADDR_ANY; //TODO inet atom pri priznaku -u inak z file /etc/resolv.conf vybrat default DNS
-
+        if(ipShow == true){
+            servaddr.sin_addr.s_addr = inet_addr(argv[ipNum]);
+        }else{
+            servaddr.sin_addr.s_addr = inet_addr(ipTmp);
+        }
         unsigned char buf[101] = {0};
 
         int fredNum = fread(c, 1, BLOCK/2, fp);
@@ -321,28 +332,21 @@ int main(int argc, char *argv[]){
         
         unsigned int n, lenC;
          
-        if (select(sockfd+1, &readfds, NULL, NULL, &timeout) < 0)
-        {
-            perror("on select");
-            exit(1);
-        }
+        struct timeval timeout;      
+            timeout.tv_sec = 5;
+            timeout.tv_usec = 0;
 
-        if (FD_ISSET(sockfd, &readfds))
-        {
-            n = recvfrom(sockfd, (char *)buffer, MAX_BUFFER_SIZE, MSG_WAITALL, (struct sockaddr *) &servaddr, &lenC); 
-            buffer[n] = '\0'; 
-            printf("Server: %s \n", buffer);
-
-            memcpy(&readfds, &masterfds, sizeof(fd_set));
+        if (setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) > 0)
+        {    
+            perror("set timeout failed");
+            exit(EXIT_FAILURE);
         }
-        else
-        {
-            // the socket timedout
-            return 0;
+        if((n = recvfrom(sockfd, (char *)buffer, MAX_BUFFER_SIZE, MSG_WAITALL, (struct sockaddr *) &servaddr, &lenC)) == -1){
+            fprintf(stderr, "DATA did not reach / connection timeout \n");
+            return 1;
         }
     
         close(sockfd);
-        break;
     }
     //sending ending packet to end comunication while will be done just once
     while(1){
@@ -353,22 +357,18 @@ int main(int argc, char *argv[]){
         if ( (sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0 ) { 
             fprintf(stderr, "socket creation failed \n");
             return 1;
-        }
-
-        fd_set readfds, masterfds;
-        struct timeval timeout;
-        timeout.tv_sec = 10;                    /*set the timeout to 10 seconds*/
-        timeout.tv_usec = 0;
-        FD_ZERO(&masterfds);
-        FD_SET(sockfd, &masterfds);
+        } 
         
         memset(&servaddr, 0, sizeof(servaddr)); 
         
         // Filling server information 
         servaddr.sin_family = AF_INET; 
         servaddr.sin_port = htons(PORT); 
-        servaddr.sin_addr.s_addr = INADDR_ANY; //TODO inet atom pri priznaku -u inak z file /etc/resolv.conf vybrat default DNS
-
+        if(ipShow == true){
+            servaddr.sin_addr.s_addr = inet_addr(argv[ipNum]);
+        }else{
+            servaddr.sin_addr.s_addr = inet_addr(ipTmp);
+        }
         unsigned char buf[101] = {0};
 
         char *c = "end";
@@ -408,35 +408,25 @@ int main(int argc, char *argv[]){
         sendto(sockfd, packet, len+1, MSG_CONFIRM, (const struct sockaddr *) &servaddr, sizeof(servaddr)); 
         
         unsigned int n, lenC;
-        
-        if (select(sockfd+1, &readfds, NULL, NULL, &timeout) < 0)
-        {
-            perror("on select");
-            exit(1);
-        }
+         
+        struct timeval timeout;      
+            timeout.tv_sec = 5;
+            timeout.tv_usec = 0;
 
-        if (FD_ISSET(sockfd, &readfds))
-        {
-            n = recvfrom(sockfd, (char *)buffer, MAX_BUFFER_SIZE, MSG_WAITALL, (struct sockaddr *) &servaddr, &lenC); 
-            buffer[n] = '\0'; 
-            printf("Server: %s \n", buffer);
-
-            memcpy(&readfds, &masterfds, sizeof(fd_set));
+        if (setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) > 0)
+        {    
+            perror("set timeout failed");
+            exit(EXIT_FAILURE);
         }
-        else
-        {
-            // the socket timedout
-            return 0;
+        if((n = recvfrom(sockfd, (char *)buffer, MAX_BUFFER_SIZE, MSG_WAITALL, (struct sockaddr *) &servaddr, &lenC)) == -1){
+            fprintf(stderr, "OFF signal did not reach / connection timeout \n");
+            return 1;
         }
     
         close(sockfd);
         break;
     }
-    
-    
-    //TODO FREE MEMORY 
-    //free(qname);
-    //free(ptr);
+
     fclose(fp);
     return 0;
 }
@@ -459,46 +449,48 @@ bool file_exists(const char *filename)
 
 //function for positioning of argumnets
 void positioning (int argc, bool *ipShow, bool *srcPath, int *ipNum, int *baseNum, int *dstNum, int *srcNum){
+    
     if(*ipShow){
+        
         switch (*ipNum){
+        case 2:
+            if (*srcPath == true){
+                *baseNum = 3;
+                *dstNum = 4;
+                *srcNum = 5;
+            }else{
+                *baseNum = 3;
+                *dstNum = 4;
+                *srcNum = 99;
+            }
+            break;
         case 3:
             if (*srcPath == true){
-                *baseNum = 4;
-                *dstNum = 5;
-                *srcNum = 6;
-            }else{
-                *baseNum = 4;
-                *dstNum = 5;
+                *baseNum = 1;
+                *dstNum = 2;
+                *srcNum = 5;
+            }else{ 
+                *baseNum = 1;
+                *dstNum = 4;
                 *srcNum = 99;
             }
             break;
         case 4:
             if (*srcPath == true){
-                *baseNum = 2;
-                *dstNum = 5;
-                *srcNum = 6;
-            }else{ 
-                *baseNum = 2;
-                *dstNum = 5;
+                *baseNum = 1;
+                *dstNum = 2;
+                *srcNum = 5;
+            }else{
+                *baseNum = 1;
+                *dstNum = 2;
                 *srcNum = 99;
             }
             break;
         case 5:
             if (*srcPath == true){
-                *baseNum = 2;
-                *dstNum = 3;
-                *srcNum = 6;
-            }else{
-                *baseNum = 2;
-                *dstNum = 3;
-                *srcNum = 99;
-            }
-            break;
-        case 6:
-            if (*srcPath == true){
-                *baseNum = 2;
-                *dstNum = 3;
-                *srcNum = 4;
+                *baseNum = 1;
+                *dstNum = 2;
+                *srcNum = 3;
             }
             break;
         default:  //well something went  wrong
@@ -506,16 +498,18 @@ void positioning (int argc, bool *ipShow, bool *srcPath, int *ipNum, int *baseNu
             return;  //error
         }
     }else{
+        
         if (*srcPath == true){
-            *baseNum = 2;
-            *dstNum = 3;
-            *srcNum = 4;
+            *baseNum = 1;
+            *dstNum = 2;
+            *srcNum = 3;
         }else {
-            *baseNum = 2;
-            *dstNum = 3;
+            *baseNum = 1;
+            *dstNum = 2;
             *srcNum = 99;       //not existing load from stdin
         }
     }
+    
 }
 
 // checking arguments 

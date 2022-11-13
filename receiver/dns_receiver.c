@@ -11,7 +11,7 @@
 #include "../dns.h"
 #include <sys/stat.h>
 
-#define PORT      20000
+#define PORT      53
 #define BLOCKSIZE 120
 
 struct __attribute__((__packed__)) dns_payload {
@@ -79,7 +79,7 @@ int main(int argc, char *argv[]){
             base32_decode(base32_buf, payloadBuf, 300);
             base = (char*)payloadBuf;
             if (strcmp(argv[1],base) != 0){
-                fprintf(stderr, "BASE not same.!!!\n"); 
+                fprintf(stderr, "BASE not same.\n"); 
                 return 0;
             }
         }
@@ -154,3 +154,4 @@ void save_data(struct dns_query *dns_query, char *fileTO, char *dir) {
     printf("Wrote %d bytes to %s at offset %d\n", payload->length, filename,payload->sequence * 120);
 
     return;
+}
