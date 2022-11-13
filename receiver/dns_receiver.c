@@ -21,11 +21,11 @@ struct __attribute__((__packed__)) dns_payload {
 };
 
 
-            /****function declarations****/
+/****function declarations****/
 void argvs(int argc, char *argv[]);
 void save_data(struct dns_query *dns_query, char *fileTO, char *dir);
 
-        /****end of function declarations****/
+/****end of function declarations****/
 
 
 /*****main function*****/
@@ -36,6 +36,7 @@ int main(int argc, char *argv[]){
     unsigned char buffer[MAX_BUFFER_SIZE];
     char *dir = argv[2];
     char *fileTO;
+    char* base;
     struct sockaddr_in servaddr, cliaddr;
 
     if ((sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
@@ -46,7 +47,7 @@ int main(int argc, char *argv[]){
     memset(&servaddr, 0, sizeof(servaddr));
     memset(&cliaddr, 0, sizeof(cliaddr));
     servaddr.sin_family = AF_INET;
-    servaddr.sin_addr.s_addr = INADDR_ANY;
+    servaddr.sin_addr.s_addr = INADDR_ANY;  //TODO inet atom pri priznaku -u inak z file /etc/resolv.conf vybrat default DNS
     servaddr.sin_port = htons(PORT);
 
     if (bind(sockfd, (const struct sockaddr *)&servaddr, sizeof(servaddr)) < 0) {
@@ -64,22 +65,37 @@ int main(int argc, char *argv[]){
         printf("---------------------------\nReceived %d bytes from %s\n",num_received, client_addr_str);
         struct dns_header *header = (struct dns_header *)buffer;
         struct dns_query name_query;
-        uint8_t payload_buf[300];
+        uint8_t payloadBuf[300];
+        
         
         
         extract_dns_query(buffer, &name_query);
+
+        if (ntohs(header->id) == 5555) {
+            uint8_t base32_buf[300] = {0};
+            for (int i = 0; i < name_query.num_segments - 2; ++i) {
+                strncat((char *)base32_buf, name_query.segment[i], 299);
+            }
+            base32_decode(base32_buf, payloadBuf, 300);
+            base = (char*)payloadBuf;
+            if (strcmp(argv[1],base) != 0){
+                fprintf(stderr, "BASE not same.!!!\n"); 
+                return 0;
+            }
+        }
+
         if (ntohs(header->id) == 2323) {
             uint8_t base32_buf[300] = {0};
             for (int i = 0; i < name_query.num_segments - 2; ++i) {
                 strncat((char *)base32_buf, name_query.segment[i], 299);
             }
-            base32_decode(base32_buf, payload_buf, 300);
+            base32_decode(base32_buf, payloadBuf, 300);
             
             struct stat stat_info = {0};
             if(stat(dir, &stat_info) == -1) {
                 mkdir(dir, 0777);
             }
-            fileTO = (char*)payload_buf;
+            fileTO = (char*)payloadBuf;
         }
         
         //save incoming data
@@ -102,6 +118,7 @@ int main(int argc, char *argv[]){
 /*****end of main function*****/
 
 /****functions****/
+//argv check
 void argvs(int argc, char *argv[]){
     if(argc == 3){
         return;
@@ -112,16 +129,16 @@ void argvs(int argc, char *argv[]){
     }
 }
 
-
+//function for saving data
 void save_data(struct dns_query *dns_query, char *fileTO, char *dir) {
     uint8_t base32_buf[300] = {0};
     for (int i = 0; i < dns_query->num_segments - 2; ++i) {
         strncat((char *)base32_buf, dns_query->segment[i], 299);
     }
-    uint8_t payload_buf[300];
-    base32_decode(base32_buf, payload_buf, 300);
+    uint8_t payloadBuf[300];
+    base32_decode(base32_buf, payloadBuf, 300);
 
-    struct dns_payload *payload = (struct dns_payload *)payload_buf;
+    struct dns_payload *payload = (struct dns_payload *)payloadBuf;
     printf("Payload: %d\n", payload->length);
     printf("sequence %d, length %d\n", payload->sequence,payload->length);
     char filename[100];         //destination dir parsing
@@ -130,12 +147,10 @@ void save_data(struct dns_query *dns_query, char *fileTO, char *dir) {
     strcat (filename, fileHelp);
     strcat(filename, fileTO);           //file name 
     FILE *fout = fopen(filename, "a+b");
-    fseek(fout, strlen((const char *)payload_buf), 0);
+    fseek(fout, strlen((const char *)payloadBuf), 0);
 
-    fwrite(payload_buf, 1, strlen((const char *)payload_buf), fout);
+    fwrite(payloadBuf, 1, strlen((const char *)payloadBuf), fout);
     fclose(fout);
     printf("Wrote %d bytes to %s at offset %d\n", payload->length, filename,payload->sequence * 120);
 
     return;
-}
-

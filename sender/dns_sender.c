@@ -9,6 +9,7 @@
 #include <netinet/in.h>
 #include "../base32.h"
 #include "../dns.h"
+#include "sys/time.h"
 
 #define PORT    20000     //port used for DNS comunication 
 #define BLOCK   50
@@ -34,6 +35,8 @@ int main(int argc, char *argv[]){
     int dstNum = 0;         //position of {DST_FILEPATH}
     int srcNum = 0;         //position of [SRC_FILEPATH]
         /****end of flags and intgrs****/
+
+    
 
     argvs(argc, argv, &ipShow, &srcPath, &ipNum);
     positioning(argc, &ipShow, &srcPath, &ipNum, &baseNum, &dstNum, &srcNum);
@@ -73,8 +76,95 @@ int main(int argc, char *argv[]){
     ptr = strtok(NULL, ".");
     qname[lenQ+1] = strlen(ptr);
 
-    fp = fopen(argv[srcNum-1], "r");
+    fp = srcPath == false ? stdin : fopen(argv[srcNum-1], "r");
+    //sending BASE_HOST while will be done just once
+    while(1){
+        int sockfd; 
+        struct sockaddr_in     servaddr; 
+        char buffer[MAX_BUFFER_SIZE]; 
+        // Creating socket file descriptor 
+        if ( (sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0 ) { 
+            fprintf(stderr, "socket creation failed \n");
+            return 1;
+        }
+        fd_set readfds, masterfds;
+        struct timeval timeout;
+        timeout.tv_sec = 10;                    /*set the timeout to 10 seconds*/
+        timeout.tv_usec = 0;
+        FD_ZERO(&masterfds);
+        FD_SET(sockfd, &masterfds);
+        
+        
+        memset(&servaddr, 0, sizeof(servaddr)); 
+        
+        // Filling server information 
+        servaddr.sin_family = AF_INET; 
+        servaddr.sin_port = htons(PORT); 
+        servaddr.sin_addr.s_addr = INADDR_ANY; //TODO inet atom pri priznaku -u inak z file /etc/resolv.conf vybrat default DNS
 
+        unsigned char buf[101] = {0};
+
+        char *c = argv[baseNum-1];
+        
+        base32_encode((const unsigned char *)c, strlen(argv[baseNum-1]), buf, BLOCK);
+        printf("\n%s\n", buf);
+
+        int lenB = strlen((const char *)buf) + 1;
+        char bufLen[100] = {0};
+        bufLen[0] = lenB - 1;
+        memcpy(bufLen + 1, buf, lenB - 1);
+        memcpy(buf, bufLen, lenB);
+
+        unsigned char packet[512] = {0};
+        struct dns_header *header = (struct dns_header *)packet;
+        header->id = htons(5555);
+        header->rd = 1;
+        header->qdcount = htons(1);
+        
+        unsigned char *afterHeader = packet + sizeof(struct dns_header);
+
+        memcpy(afterHeader, buf, strlen((const char *)buf));
+
+        unsigned char *afterData = packet + sizeof(struct dns_header) + strlen((const char *)buf);
+
+        memcpy(afterData, qname, strlen(qname)+1);
+     
+        unsigned char *afterQname = packet + sizeof(struct dns_header) + strlen((const char *)buf)+strlen((const char *)qname)-1;
+
+        struct dns_response_trailer *trailer = (struct dns_response_trailer *)afterQname;
+        trailer->qclass = htons(QTYPE_A);
+        trailer->type = htons(QCLASS_INET);
+
+        int len = sizeof(struct dns_header) + strlen((const char *)buf) + strlen(qname) + sizeof(trailer->qclass) + sizeof(trailer->type);
+
+        sendto(sockfd, packet, len+1, MSG_CONFIRM, (const struct sockaddr *) &servaddr, sizeof(servaddr)); 
+        
+        unsigned int n, lenC;
+        
+        if (select(sockfd+1, &readfds, NULL, NULL, &timeout) < 0)
+        {
+            perror("on select");
+            exit(1);
+        }
+
+        if (FD_ISSET(sockfd, &readfds))
+        {
+            n = recvfrom(sockfd, (char *)buffer, MAX_BUFFER_SIZE, MSG_WAITALL, (struct sockaddr *) &servaddr, &lenC); 
+            buffer[n] = '\0'; 
+            printf("Server: %s \n", buffer);
+
+            memcpy(&readfds, &masterfds, sizeof(fd_set));
+        }
+        else
+        {
+            // the socket timedout
+            fprintf(stderr, "BASE not same.!!!\n");
+            return 0;
+        }
+    
+        close(sockfd);
+        break;
+    }
     //sending DST_FILEPATH while will be done just once
     while(1){
         int sockfd; 
@@ -84,7 +174,14 @@ int main(int argc, char *argv[]){
         if ( (sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0 ) { 
             fprintf(stderr, "socket creation failed \n");
             return 1;
-        } 
+        }
+
+        fd_set readfds, masterfds;
+        struct timeval timeout;
+        timeout.tv_sec = 10;                    /*set the timeout to 10 seconds*/
+        timeout.tv_usec = 0;
+        FD_ZERO(&masterfds);
+        FD_SET(sockfd, &masterfds);
         
         memset(&servaddr, 0, sizeof(servaddr)); 
         
@@ -133,9 +230,25 @@ int main(int argc, char *argv[]){
         
         unsigned int n, lenC;
          
-        n = recvfrom(sockfd, (char *)buffer, MAX_BUFFER_SIZE, MSG_WAITALL, (struct sockaddr *) &servaddr, &lenC); 
-        buffer[n] = '\0'; 
-        printf("Server: %s \n", buffer);
+       if (select(sockfd+1, &readfds, NULL, NULL, &timeout) < 0)
+        {
+            perror("on select");
+            exit(1);
+        }
+
+        if (FD_ISSET(sockfd, &readfds))
+        {
+            n = recvfrom(sockfd, (char *)buffer, MAX_BUFFER_SIZE, MSG_WAITALL, (struct sockaddr *) &servaddr, &lenC); 
+            buffer[n] = '\0'; 
+            printf("Server: %s \n", buffer);
+
+            memcpy(&readfds, &masterfds, sizeof(fd_set));
+        }
+        else
+        {
+            // the socket timedout
+            return 0;
+        }
     
         close(sockfd);
         break;
@@ -149,7 +262,14 @@ int main(int argc, char *argv[]){
         if ( (sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0 ) { 
             fprintf(stderr, "socket creation failed \n");
             return 1;
-        } 
+        }
+
+        fd_set readfds, masterfds;
+        struct timeval timeout;
+        timeout.tv_sec = 10;                    /*set the timeout to 10 seconds*/
+        timeout.tv_usec = 0;
+        FD_ZERO(&masterfds);
+        FD_SET(sockfd, &masterfds);
         
         memset(&servaddr, 0, sizeof(servaddr)); 
         
@@ -201,11 +321,28 @@ int main(int argc, char *argv[]){
         
         unsigned int n, lenC;
          
-        n = recvfrom(sockfd, (char *)buffer, MAX_BUFFER_SIZE, MSG_WAITALL, (struct sockaddr *) &servaddr, &lenC); 
-        buffer[n] = '\0'; 
-        printf("Server: %s \n", buffer);
+        if (select(sockfd+1, &readfds, NULL, NULL, &timeout) < 0)
+        {
+            perror("on select");
+            exit(1);
+        }
+
+        if (FD_ISSET(sockfd, &readfds))
+        {
+            n = recvfrom(sockfd, (char *)buffer, MAX_BUFFER_SIZE, MSG_WAITALL, (struct sockaddr *) &servaddr, &lenC); 
+            buffer[n] = '\0'; 
+            printf("Server: %s \n", buffer);
+
+            memcpy(&readfds, &masterfds, sizeof(fd_set));
+        }
+        else
+        {
+            // the socket timedout
+            return 0;
+        }
     
         close(sockfd);
+        break;
     }
     //sending ending packet to end comunication while will be done just once
     while(1){
@@ -216,7 +353,14 @@ int main(int argc, char *argv[]){
         if ( (sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0 ) { 
             fprintf(stderr, "socket creation failed \n");
             return 1;
-        } 
+        }
+
+        fd_set readfds, masterfds;
+        struct timeval timeout;
+        timeout.tv_sec = 10;                    /*set the timeout to 10 seconds*/
+        timeout.tv_usec = 0;
+        FD_ZERO(&masterfds);
+        FD_SET(sockfd, &masterfds);
         
         memset(&servaddr, 0, sizeof(servaddr)); 
         
@@ -264,15 +408,33 @@ int main(int argc, char *argv[]){
         sendto(sockfd, packet, len+1, MSG_CONFIRM, (const struct sockaddr *) &servaddr, sizeof(servaddr)); 
         
         unsigned int n, lenC;
-         
-        n = recvfrom(sockfd, (char *)buffer, MAX_BUFFER_SIZE, MSG_WAITALL, (struct sockaddr *) &servaddr, &lenC); 
-        buffer[n] = '\0'; 
-        printf("Server: %s \n", buffer);
+        
+        if (select(sockfd+1, &readfds, NULL, NULL, &timeout) < 0)
+        {
+            perror("on select");
+            exit(1);
+        }
+
+        if (FD_ISSET(sockfd, &readfds))
+        {
+            n = recvfrom(sockfd, (char *)buffer, MAX_BUFFER_SIZE, MSG_WAITALL, (struct sockaddr *) &servaddr, &lenC); 
+            buffer[n] = '\0'; 
+            printf("Server: %s \n", buffer);
+
+            memcpy(&readfds, &masterfds, sizeof(fd_set));
+        }
+        else
+        {
+            // the socket timedout
+            return 0;
+        }
     
         close(sockfd);
         break;
     }
-
+    
+    
+    //TODO FREE MEMORY 
     //free(qname);
     //free(ptr);
     fclose(fp);
