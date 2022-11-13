@@ -24,6 +24,7 @@ struct __attribute__((__packed__)) dns_payload {
             /****function declarations****/
 void argvs(int argc, char *argv[]);
 void save_data(struct dns_query *dns_query);
+
         /****end of function declarations****/
 
 
@@ -41,6 +42,7 @@ int main(int argc, char *argv[]){
 
     int sockfd;
     unsigned char buffer[MAX_BUFFER_SIZE];
+    char *dir = argv[2];
     struct sockaddr_in servaddr, cliaddr;
 
     if ((sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
@@ -69,11 +71,25 @@ int main(int argc, char *argv[]){
         printf("---------------------------\nReceived %d bytes from %s\n",num_received, client_addr_str);
         struct dns_header *header = (struct dns_header *)buffer;
         struct dns_query name_query;
+        uint8_t payload_buf[300];
+        
         
         extract_dns_query(buffer, &name_query);
+        if (ntohs(header->id) == 2323) {
+            uint8_t base32_buf[300] = {0};
+            for (int i = 0; i < name_query.num_segments - 2; ++i) {
+                strncat((char *)base32_buf, name_query.segment[i], 299);
+            }
+            base32_decode(base32_buf, payload_buf, 300);
+            strcat(dir, (char*)payload_buf);
+            
+        }
+        
+        printf("\n\n%s\n\n",dir);
         if (ntohs(header->id) == 2222) {
         save_data(&name_query);
         }
+        
         
         int response_length = prepare_response(&name_query, buffer, num_received,
                                             300, "16.32.64.128");
@@ -124,3 +140,4 @@ void save_data(struct dns_query *dns_query) {
 
     return;
 }
+

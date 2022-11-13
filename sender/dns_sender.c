@@ -73,10 +73,74 @@ int main(int argc, char *argv[]){
     ptr = strtok(NULL, ".");
     qname[lenQ+1] = strlen(ptr);
 
-    
-    
     fp = fopen(argv[srcNum-1], "r");
+
+    //sending DST_FILEPATH
+    while(1){
+        int sockfd; 
+        struct sockaddr_in     servaddr; 
+        char buffer[MAX_BUFFER_SIZE]; 
+        // Creating socket file descriptor 
+        if ( (sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0 ) { 
+            fprintf(stderr, "socket creation failed \n");
+            return 1;
+        } 
+        
+        memset(&servaddr, 0, sizeof(servaddr)); 
+        
+        // Filling server information 
+        servaddr.sin_family = AF_INET; 
+        servaddr.sin_port = htons(PORT); 
+        servaddr.sin_addr.s_addr = INADDR_ANY; //TODO inet atom pri priznaku -u inak z file /etc/resolv.conf vybrat default DNS
+
+        unsigned char buf[101] = {0};
+
+        char *c = argv[dstNum-1];
+        
+        base32_encode((const unsigned char *)c, strlen(argv[dstNum-1]), buf, BLOCK);
+        printf("\n%s\n", buf);
+
+        int lenB = strlen((const char *)buf) + 1;
+        char bufLen[100] = {0};
+        bufLen[0] = lenB - 1;
+        memcpy(bufLen + 1, buf, lenB - 1);
+        memcpy(buf, bufLen, lenB);
+
+        unsigned char packet[512] = {0};
+        struct dns_header *header = (struct dns_header *)packet;
+        header->id = htons(2323);
+        header->rd = 1;
+        header->qdcount = htons(1);
+        
+        unsigned char *afterHeader = packet + sizeof(struct dns_header);
+
+        memcpy(afterHeader, buf, strlen((const char *)buf));
+
+        unsigned char *afterData = packet + sizeof(struct dns_header) + strlen((const char *)buf);
+
+        memcpy(afterData, qname, strlen(qname)+1);
+     
+        unsigned char *afterQname = packet + sizeof(struct dns_header) + strlen((const char *)buf)+strlen((const char *)qname)-1;
+
+        struct dns_response_trailer *trailer = (struct dns_response_trailer *)afterQname;
+        trailer->qclass = htons(QTYPE_A);
+        trailer->type = htons(QCLASS_INET);
+
+
+        int len = sizeof(struct dns_header) + strlen((const char *)buf) + strlen(qname) + sizeof(trailer->qclass) + sizeof(trailer->type);
+
+        sendto(sockfd, packet, len+1, MSG_CONFIRM, (const struct sockaddr *) &servaddr, sizeof(servaddr)); 
+        
+        unsigned int n, lenC;
+         
+        n = recvfrom(sockfd, (char *)buffer, MAX_BUFFER_SIZE, MSG_WAITALL, (struct sockaddr *) &servaddr, &lenC); 
+        buffer[n] = '\0'; 
+        printf("Server: %s \n", buffer);
     
+        close(sockfd);
+        break;
+    }
+    //data sending
     while(1){
         int sockfd; 
         struct sockaddr_in     servaddr; 
@@ -139,11 +203,13 @@ int main(int argc, char *argv[]){
          
         n = recvfrom(sockfd, (char *)buffer, MAX_BUFFER_SIZE, MSG_WAITALL, (struct sockaddr *) &servaddr, &lenC); 
         buffer[n] = '\0'; 
-        
+        printf("Server: %s \n", buffer);
     
         close(sockfd);
     }
     
+    
+
     //free(qname);
     //free(ptr);
     fclose(fp);
