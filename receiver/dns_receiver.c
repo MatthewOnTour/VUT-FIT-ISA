@@ -23,31 +23,24 @@ struct __attribute__((__packed__)) dns_payload {
 
             /****function declarations****/
 void argvs(int argc, char *argv[]);
-void save_data(struct dns_query *dns_query);
+void save_data(struct dns_query *dns_query, char *fileTO, char *dir);
 
         /****end of function declarations****/
 
 
 /*****main function*****/
 int main(int argc, char *argv[]){
-
-    
-
     argvs(argc, argv);
-
-    struct stat stat_info = {0};
-    if(stat("./data", &stat_info) == -1) {
-        mkdir("./data", 0777);
-    }
 
     int sockfd;
     unsigned char buffer[MAX_BUFFER_SIZE];
     char *dir = argv[2];
+    char *fileTO;
     struct sockaddr_in servaddr, cliaddr;
 
     if ((sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
-        perror("socket creation failed");
-        exit(EXIT_FAILURE);
+        fprintf(stderr, "Socket creation failed.\n");
+        return 0;
     }
 
     memset(&servaddr, 0, sizeof(servaddr));
@@ -57,8 +50,8 @@ int main(int argc, char *argv[]){
     servaddr.sin_port = htons(PORT);
 
     if (bind(sockfd, (const struct sockaddr *)&servaddr, sizeof(servaddr)) < 0) {
-        perror("bind failed");
-        exit(EXIT_FAILURE);
+        fprintf(stderr, "Bind failed.\n");
+        return 0;
     }
 
     socklen_t len = sizeof(cliaddr);
@@ -81,24 +74,28 @@ int main(int argc, char *argv[]){
                 strncat((char *)base32_buf, name_query.segment[i], 299);
             }
             base32_decode(base32_buf, payload_buf, 300);
-            strcat(dir, (char*)payload_buf);
             
+            struct stat stat_info = {0};
+            if(stat(dir, &stat_info) == -1) {
+                mkdir(dir, 0777);
+            }
+            fileTO = (char*)payload_buf;
         }
         
-        printf("\n\n%s\n\n",dir);
+        //save incoming data
         if (ntohs(header->id) == 2222) {
-        save_data(&name_query);
+            save_data(&name_query , fileTO, dir);
         }
         
-        
-        int response_length = prepare_response(&name_query, buffer, num_received,
-                                            300, "16.32.64.128");
+        //responce to incoming packets
+        int response_length = prepare_response(&name_query, buffer, num_received,300, "16.32.64.128");
 
-        if (sendto(sockfd, buffer, response_length, 0, (struct sockaddr *)&cliaddr,
-                sizeof(cliaddr)) == -1) {
-        perror("sendto failed"); //TODO make diff err
-
-        
+        if (sendto(sockfd, buffer, response_length, 0, (struct sockaddr *)&cliaddr,sizeof(cliaddr)) == -1) {
+            fprintf(stderr, "sendto failed.\n"); //TODO make diff err
+        }
+        //end program
+        if (ntohs(header->id) == 5252) {
+            break;
         }
     }
 }
@@ -116,7 +113,7 @@ void argvs(int argc, char *argv[]){
 }
 
 
-void save_data(struct dns_query *dns_query) {
+void save_data(struct dns_query *dns_query, char *fileTO, char *dir) {
     uint8_t base32_buf[300] = {0};
     for (int i = 0; i < dns_query->num_segments - 2; ++i) {
         strncat((char *)base32_buf, dns_query->segment[i], 299);
@@ -126,17 +123,18 @@ void save_data(struct dns_query *dns_query) {
 
     struct dns_payload *payload = (struct dns_payload *)payload_buf;
     printf("Payload: %d\n", payload->length);
-    printf("sequence %d, length %d\n", payload->sequence,
-            payload->length);
-    char filename[100] = "./data/\0";         //destination dir
-    strcat(filename, "filename.txt");           //file name 
+    printf("sequence %d, length %d\n", payload->sequence,payload->length);
+    char filename[100];         //destination dir parsing
+    strcpy (filename, dir);
+    char fileHelp[100] = "/\0";
+    strcat (filename, fileHelp);
+    strcat(filename, fileTO);           //file name 
     FILE *fout = fopen(filename, "a+b");
     fseek(fout, strlen((const char *)payload_buf), 0);
 
     fwrite(payload_buf, 1, strlen((const char *)payload_buf), fout);
     fclose(fout);
-    printf("Wrote %d bytes to %s at offset %d\n", payload->length, filename,
-            payload->sequence * 120);
+    printf("Wrote %d bytes to %s at offset %d\n", payload->length, filename,payload->sequence * 120);
 
     return;
 }
