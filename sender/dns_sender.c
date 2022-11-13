@@ -50,7 +50,7 @@ int main(int argc, char *argv[]){
             fp = fopen(argv[srcNum], "r");
             if (fp == NULL) {
                 fprintf(stderr, "cannot open %s\n", argv[srcNum]);
-                return 1;
+                exit(0);
             }
         }
     }else{
@@ -60,7 +60,7 @@ int main(int argc, char *argv[]){
             //:D
         }else{
             fprintf(stderr, "File %s doesn't exist or path is invalid \n", filename);
-            return 1;
+            exit(0);
         }
     }
     char *filename = "/etc/resolv.conf";
@@ -69,14 +69,14 @@ int main(int argc, char *argv[]){
             //:D
     }else{
         fprintf(stderr, "File %s doesn't exist or path is invalid \n", filename);
-        return 1;
+        exit(0);
     }
 
     fip = fopen("/etc/resolv.conf" , "r");
     char *ipTmp;
     if(fip == NULL) {
       fprintf(stderr, "File /etc/resolv.conf doesn't exist or path is invalid \n");
-      return(1);
+      exit(0);
    }
 
     while (fgets (fileIP, 255, fip) != NULL){
@@ -118,7 +118,7 @@ int main(int argc, char *argv[]){
         // Creating socket file descriptor 
         if ((sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0 ) { 
             fprintf(stderr, "socket creation failed \n");
-            return 1;
+            exit(0);
         }
 
         memset(&servaddr, 0, sizeof(servaddr)); 
@@ -181,7 +181,7 @@ int main(int argc, char *argv[]){
         }
         if((n = recvfrom(sockfd, (char *)buffer, MAX_BUFFER_SIZE, MSG_WAITALL, (struct sockaddr *) &servaddr, &lenC)) == -1){
             fprintf(stderr, "BASEHOST not same or connection timeout \n");
-            return 1;
+            exit(0);
         }
 
         buffer[n] = '\0'; 
@@ -198,7 +198,7 @@ int main(int argc, char *argv[]){
         // Creating socket file descriptor 
         if ( (sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0 ) { 
             fprintf(stderr, "socket creation failed \n");
-            return 1;
+            exit(0);
         } 
 
         memset(&servaddr, 0, sizeof(servaddr)); 
@@ -262,7 +262,7 @@ int main(int argc, char *argv[]){
         }
         if((n = recvfrom(sockfd, (char *)buffer, MAX_BUFFER_SIZE, MSG_WAITALL, (struct sockaddr *) &servaddr, &lenC)) == -1){
             fprintf(stderr, "DST_FILEPATH did not reach / connection timeout \n");
-            return 1;
+            exit(0);
         }
     
         close(sockfd);
@@ -276,7 +276,7 @@ int main(int argc, char *argv[]){
         // Creating socket file descriptor 
         if ( (sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0 ) { 
             fprintf(stderr, "socket creation failed \n");
-            return 1;
+            exit(0);
         } 
         
         memset(&servaddr, 0, sizeof(servaddr)); 
@@ -343,7 +343,7 @@ int main(int argc, char *argv[]){
         }
         if((n = recvfrom(sockfd, (char *)buffer, MAX_BUFFER_SIZE, MSG_WAITALL, (struct sockaddr *) &servaddr, &lenC)) == -1){
             fprintf(stderr, "DATA did not reach / connection timeout \n");
-            return 1;
+            exit(0);
         }
     
         close(sockfd);
@@ -356,7 +356,7 @@ int main(int argc, char *argv[]){
         // Creating socket file descriptor 
         if ( (sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0 ) { 
             fprintf(stderr, "socket creation failed \n");
-            return 1;
+            exit(0);
         } 
         
         memset(&servaddr, 0, sizeof(servaddr)); 
@@ -420,7 +420,7 @@ int main(int argc, char *argv[]){
         }
         if((n = recvfrom(sockfd, (char *)buffer, MAX_BUFFER_SIZE, MSG_WAITALL, (struct sockaddr *) &servaddr, &lenC)) == -1){
             fprintf(stderr, "OFF signal did not reach / connection timeout \n");
-            return 1;
+            exit(0);
         }
     
         close(sockfd);
@@ -495,7 +495,7 @@ void positioning (int argc, bool *ipShow, bool *srcPath, int *ipNum, int *baseNu
             break;
         default:  //well something went  wrong
             fprintf(stderr, "Internal error.\n");
-            return;  //error
+           exit(0);  //error
         }
     }else{
         
@@ -519,7 +519,7 @@ void argvs(int argc, char *argv[], bool *ipShow, bool *srcPath, int *ipNum){
     if (argc < 3 || argc > 6){
         fprintf(stderr, "Invalid number of arguments.\n");
         fprintf(stderr, "Usage: dns_sender [-u UPSTREAM_DNS_IP] {BASE_HOST} {DST_FILEPATH} [SRC_FILEPATH].\n");
-        return;  //error
+        exit(0);  //error
     }
 
     for (int a = 1; a < argc; a++){
@@ -537,7 +537,7 @@ void argvs(int argc, char *argv[], bool *ipShow, bool *srcPath, int *ipNum){
             }else{
                 fprintf(stderr, "Invalid input in arguments.\n");
                 fprintf(stderr, "Usage: dns_sender [-u UPSTREAM_DNS_IP] {BASE_HOST} {DST_FILEPATH} [SRC_FILEPATH].\n");
-                return;  //error
+                exit(0);  //error
             }
             *ipNum = a+1;
         }
@@ -553,7 +553,7 @@ void argvs(int argc, char *argv[], bool *ipShow, bool *srcPath, int *ipNum){
         }else{
             fprintf(stderr, "Invalid input in arguments.\n");
             fprintf(stderr, "Usage: dns_sender [-u UPSTREAM_DNS_IP] {BASE_HOST} {DST_FILEPATH} [SRC_FILEPATH].\n");
-            return;  //error
+            exit(0);  //error
         }
     }
 }
@@ -563,36 +563,42 @@ int isValidIp4 (char *str) {
     int segs = 0;   //segment counter
     int chCount = 0;  //internal segment counter
     int accum = 0;  //acumulator
-
+    
     if (str == NULL){
-        return 0;
+        exit(0);
     }
     while (*str != '\0'){
         if (*str == '.'){
             if (chCount == 0){
-                return 0;
+                fprintf(stderr, "Invalid IPv4.\n");
+                exit(0);
             }
             if (++segs == 4){
-                return 0;
+                fprintf(stderr, "Invalid IPv4.\n");
+                exit(0);
             }
             chCount = accum = 0;        //reset loop
             str++;
             continue;
         }
         if ((*str < '0') || (*str > '9')){
-            return 0;
+            fprintf(stderr, "Invalid IPv4.\n");
+            exit(0);
         }
         if ((accum = accum * 10 + *str - '0') > 255){
-            return 0;
+            fprintf(stderr, "Invalid IPv4.\n");
+            exit(0);
         }
         chCount++;      //advance and continue 
         str++;
     }
     if (segs != 3){         //segment chceck
-        return 0;
+        fprintf(stderr, "Invalid IPv4.\n");
+        exit(0);
     }
     if (chCount == 0){
-        return 0;
+        fprintf(stderr, "Invalid IPv4.\n");
+        exit(0);
     }
     return 1;
 }
