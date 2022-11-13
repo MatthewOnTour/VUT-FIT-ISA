@@ -41,7 +41,7 @@ int main(int argc, char *argv[]){
 
     if ((sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
         fprintf(stderr, "Socket creation failed.\n");
-        return 0;
+        exit(0);
     }
 
     memset(&servaddr, 0, sizeof(servaddr));
@@ -52,7 +52,7 @@ int main(int argc, char *argv[]){
 
     if (bind(sockfd, (const struct sockaddr *)&servaddr, sizeof(servaddr)) < 0) {
         fprintf(stderr, "Bind failed.\n");
-        return 0;
+        exit(0);
     }
 
     socklen_t len = sizeof(cliaddr);
@@ -80,7 +80,7 @@ int main(int argc, char *argv[]){
             base = (char*)payloadBuf;
             if (strcmp(argv[1],base) != 0){
                 fprintf(stderr, "BASE not same.\n"); 
-                return 0;
+                exit(0);
             }
         }
 
@@ -125,7 +125,7 @@ void argvs(int argc, char *argv[]){
     }else{
         fprintf(stderr, "Invalid number of arguments.\n");
         fprintf(stderr, "Usage: dns_sender [-u UPSTREAM_DNS_IP] {BASE_HOST} {DST_FILEPATH} [SRC_FILEPATH].\n");
-        return;  //error
+        exit(0);  //error
     }
 }
 

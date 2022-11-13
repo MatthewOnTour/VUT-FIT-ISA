@@ -565,6 +565,7 @@ int isValidIp4 (char *str) {
     int accum = 0;  //acumulator
     
     if (str == NULL){
+        fprintf(stderr, "Invalid IPv4.\n");
         exit(0);
     }
     while (*str != '\0'){
