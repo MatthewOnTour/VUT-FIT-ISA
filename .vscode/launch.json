@@ -10,11 +10,11 @@
             "request": "launch",
             "program": "${workspaceFolder}/sender/out",
             "args": [
-                "example.com",
                 "-u",
                 "127.0.0.1",
-                "data.txt",
-                "./data.txt"
+                "example.com",
+                "text.txt",
+                "./testdir/text.txt"
             ],
             "stopAtEntry": false,
             "cwd": "${fileDirname}",

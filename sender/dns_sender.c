@@ -10,8 +10,9 @@
 #include "../base32.h"
 #include "../dns.h"
 #include "sys/time.h"
+#include "dns_sender_events.h"
 
-#define PORT    53     //port used for DNS comunication 
+#define PORT    20000     //port used for DNS comunication  //TODO set to 53 when sending the project
 #define BLOCK   50
 
 
@@ -42,7 +43,7 @@ int main(int argc, char *argv[]){
     argvs(argc, argv, &ipShow, &srcPath, &ipNum);
     positioning(argc, &ipShow, &srcPath, &ipNum, &baseNum, &dstNum, &srcNum);
     
-     /**file opening**/              //TODO make it in array or smth???
+     /**file opening**/
     if (srcPath == false){
         if (srcNum == 99){
             fp = stdin; /* read from standard input if no argument */
@@ -95,7 +96,7 @@ int main(int argc, char *argv[]){
 
     //qname
 
-    printf("\n\n%s\n\n",argv[baseNum]);
+    //printf("\n\n%s\n\n",argv[baseNum]);
 
     char *qname = malloc(strlen(argv[baseNum])+1);
     memcpy(qname+1, argv[baseNum], strlen(argv[baseNum]));
@@ -106,8 +107,8 @@ int main(int argc, char *argv[]){
     ptr = strtok(NULL, ".");
     qname[lenQ+1] = strlen(ptr);  
 
-    printf("\n\n%s\n\n", qname);
-
+    //printf("\n\n%s\n\n", qname);
+    int helpC = 1;
     
     fp = srcPath == false ? stdin : fopen(argv[srcNum], "r");
     //sending BASE_HOST while will be done just once
@@ -129,9 +130,12 @@ int main(int argc, char *argv[]){
 
         if(ipShow == true){
             servaddr.sin_addr.s_addr = inet_addr(argv[ipNum]);
+            dns_sender__on_transfer_init(&(servaddr.sin_addr));
         }else{
             servaddr.sin_addr.s_addr = inet_addr(ipTmp);
+            dns_sender__on_transfer_init(&(servaddr.sin_addr));
         }
+        
         
         unsigned char buf[101] = {0};
 
@@ -185,7 +189,7 @@ int main(int argc, char *argv[]){
         }
 
         buffer[n] = '\0'; 
-        printf("Server: %s \n", buffer);
+        //printf("Server: %s \n", buffer);
         
         close(sockfd);
         break;
@@ -298,12 +302,19 @@ int main(int argc, char *argv[]){
         }
         
         base32_encode(c, fredNum, buf, BLOCK);
-
+        /////////////////////////////////////
+        char *helpF = malloc(sizeof(buf));
+        memcpy(helpF,buf, sizeof(buf));
+        strcat((char *)helpF, ".");
+        strcat((char *)helpF, argv[baseNum]);
+        dns_sender__on_chunk_encoded(argv[dstNum],helpC,(char *)helpF);
+        
         int lenB = strlen((const char *)buf) + 1;
         char bufLen[100] = {0};
         bufLen[0] = lenB - 1;
         memcpy(bufLen + 1, buf, lenB - 1);
         memcpy(buf, bufLen, lenB);
+        
 
         unsigned char packet[512] = {0};
         struct dns_header *header = (struct dns_header *)packet;
@@ -325,15 +336,17 @@ int main(int argc, char *argv[]){
         trailer->qclass = htons(QTYPE_A);
         trailer->type = htons(QCLASS_INET);
 
-
         int len = sizeof(struct dns_header) + strlen((const char *)buf) + strlen(qname) + sizeof(trailer->qclass) + sizeof(trailer->type);
-
+        
+        //printf("\n\n%s\n\n", buf);
+        dns_sender__on_chunk_sent(&(servaddr.sin_addr),argv[dstNum],helpC,strlen(((char *)buf)+1)/8*5); 
+        helpC ++;
         sendto(sockfd, packet, len+1, MSG_CONFIRM, (const struct sockaddr *) &servaddr, sizeof(servaddr)); 
         
         unsigned int n, lenC;
          
         struct timeval timeout;      
-            timeout.tv_sec = 5;
+            timeout.tv_sec = 10;
             timeout.tv_usec = 0;
 
         if (setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout)) > 0)
@@ -374,7 +387,7 @@ int main(int argc, char *argv[]){
         char *c = "end";
         
         base32_encode((const unsigned char *)c, strlen("end"), buf, BLOCK);
-        printf("\n%s\n", buf);
+        //printf("\n%s\n", buf);
 
         int lenB = strlen((const char *)buf) + 1;
         char bufLen[100] = {0};
@@ -406,6 +419,20 @@ int main(int argc, char *argv[]){
         int len = sizeof(struct dns_header) + strlen((const char *)buf) + strlen(qname) + sizeof(trailer->qclass) + sizeof(trailer->type);
 
         sendto(sockfd, packet, len+1, MSG_CONFIRM, (const struct sockaddr *) &servaddr, sizeof(servaddr)); 
+
+        FILE* diz = fopen(argv[srcNum], "r");
+            // checking if the file exist or not
+            if (diz == NULL) {
+                printf("File Not Found!\n");
+                return -1;
+            } 
+            fseek(diz, 0L, SEEK_END);
+        
+            // calculating the size of the file
+            long int res = ftell(diz);
+            dns_sender__on_transfer_completed(argv[dstNum], res/8);
+            // closing the file
+            fclose(diz);
         
         unsigned int n, lenC;
          
@@ -467,7 +494,7 @@ void positioning (int argc, bool *ipShow, bool *srcPath, int *ipNum, int *baseNu
         case 3:
             if (*srcPath == true){
                 *baseNum = 1;
-                *dstNum = 2;
+                *dstNum = 4;
                 *srcNum = 5;
             }else{ 
                 *baseNum = 1;
